@@ -151,8 +151,14 @@ fun SolitaireScreen(onBack: ()->Unit){
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 CardSlot(label="Stock ${state.stock.size}", faceUp=false, onClick={ draw() })
                 CardSlot(label= state.waste.lastOrNull()?.label() ?: "—", faceUp= state.waste.isNotEmpty(), selected= selected?.first=="waste", onClick={
-                    if(state.waste.isNotEmpty()){
-                        if(selected?.first=="waste") tryMoveToFoundation("waste",0,0) else selected=Triple("waste",0,0)
+                    val w = state.waste.lastOrNull()
+                    if(w!=null){
+                        // single-tap: try foundation first, else select for tableau move
+                        val before = state.foundation.sumOf{it.size}
+                        tryMoveToFoundation("waste",0,0)
+                        if(state.foundation.sumOf{it.size}>before){ selected=null; return@CardSlot }
+                        // not movable to foundation -> select/deselect for tableau
+                        selected = if(selected?.first=="waste") null else Triple("waste",0,0)
                     } else selected=null
                 })
                 Spacer(Modifier.weight(1f))

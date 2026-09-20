@@ -104,7 +104,7 @@ fun TetrisScreen(onBack: ()->Unit) {
     }
 
     Surface(color=ArcadeTokens.Bg, modifier=Modifier.fillMaxSize()){
-        Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding().padding(12.dp), verticalArrangement=Arrangement.spacedBy(10.dp)){
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically){
                 SmallBtn(Icons.Filled.ArrowBack, "back", onBack)
                 Text("TETRIS", style=MaterialTheme.typography.titleLarge)
@@ -154,7 +154,8 @@ fun TetrisScreen(onBack: ()->Unit) {
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            // fixed control bar — never clips board (board is weight 1f above)
+            Row(Modifier.fillMaxWidth().padding(bottom=12.dp), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 CtrlBtn("◀", Modifier.weight(1f)){ move(-1) }
                 CtrlBtn("▼", Modifier.weight(1f)){ softDrop() }
                 CtrlBtn("▶", Modifier.weight(1f)){ move(1) }
