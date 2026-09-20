@@ -83,23 +83,24 @@ fun TexasHoldemScreen(onBack:()->Unit){
     val scope=rememberCoroutineScope()
     var chips by remember{ mutableIntStateOf(1000) }
     var pot by remember{ mutableIntStateOf(0) }
-    var deck by remember{ mutableStateOf(mutableListOf<TCard>()) }
     var board by remember{ mutableStateOf(listOf<TCard>()) }
     var revealed by remember{ mutableIntStateOf(0) }
     var players by remember{ mutableStateOf(listOf<TPlayer>()) }
     var curBet by remember{ mutableIntStateOf(0) }
     var msg by remember{ mutableStateOf("Tap Deal — Texas Hold'em vs 3 bots") }
     var phase by remember{ mutableStateOf("idle") }
-    var myBet by remember{ mutableIntStateOf(0) }
     var showHelp by remember{ mutableStateOf(false) }
     var dealing by remember{ mutableStateOf(false) }
     var raiseAmt by remember{ mutableIntStateOf(20) }
-    var activeTurn by remember{ mutableIntStateOf(-1) } // 0 you, 1..3 bots, -1 none
+    var activeTurn by remember{ mutableIntStateOf(-1) }
+    var raisesThisStreet by remember{ mutableIntStateOf(0) }
+    var raiseCapHit by remember{ mutableStateOf(false) }
+    val maxRaises=4
 
     LaunchedEffect(Unit){ try{ ctx.dataStore.data.collect{ chips=it[Prefs.ARCADE_CHIPS]?:1000 } }catch(_:Exception){} }
     suspend fun save(c:Int){ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=c } }catch(_:Exception){} }
 
-    fun botAction(idx:Int, cur:Int):String { return try{
+    fun botAction(idx:Int, cur:Int, raises:Int):String { return try{
         val p=players.getOrNull(idx)?: return "fold"
         if(p.folded || p.allIn) return "check"
         val sev = p.hole + board.take(revealed.coerceIn(0, board.size))
@@ -111,7 +112,8 @@ fun TexasHoldemScreen(onBack:()->Unit){
             ev.first
         }
         val toCall = cur - p.bet
-        if(strength>=6) "raise"
+        val canRaise = raises < maxRaises
+        if(strength>=6 && canRaise) "raise"
         else if(strength>=3) if(toCall==0) "check" else "call"
         else if(strength>=1) if(toCall==0) "check" else if(toCall<=10) "call" else "fold"
         else if(toCall==0) "check" else if(toCall<=5 && kotlin.random.Random.nextBoolean()) "call" else "fold"
@@ -124,7 +126,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
             if(mutable[i].folded || mutable[i].allIn) continue
             activeTurn=i
             delay(620)
-            val act=botAction(i, curBet)
+            val act=botAction(i, curBet, raisesThisStreet)
             when(act){
                 "fold"-> mutable[i]=mutable[i].copy(folded=true)
                 "call"->{
@@ -137,6 +139,8 @@ fun TexasHoldemScreen(onBack:()->Unit){
                     val newBet=curBet+add
                     val need=(newBet - mutable[i].bet).coerceAtLeast(0)
                     curBet=newBet
+                    raisesThisStreet++
+                    if(raisesThisStreet>=maxRaises) raiseCapHit=true
                     mutable[i]=mutable[i].copy(bet=newBet, total=mutable[i].total+need)
                     pot+=need
                     msg="Bot $i raises to $newBet — your turn: Call / Raise / Fold"
@@ -145,7 +149,30 @@ fun TexasHoldemScreen(onBack:()->Unit){
             }
             players=mutable.toList()
         }
-        activeTurn=0
+        // if player all-in, don't return turn to player — keep -1 and let auto flow handle
+        activeTurn= if(players.getOrNull(0)?.allIn==true) -1 else 0
+    }
+
+    fun doShowdown(){
+        val activePlayers=players.mapIndexed{ idx,p-> idx to p}.filter{!it.second.folded}
+        if(activePlayers.isEmpty()){ msg="No winner"; pot=0; phase="showdown"; activeTurn=-1; revealed=5; return }
+        val scores=activePlayers.map{ (idx,p)->
+            val sev=p.hole+board
+            val sc=try{ bestOf7(sev) }catch(_:Exception){ 0 to listOf(0) }
+            idx to sc
+        }
+        val best=scores.maxWithOrNull(compareBy({it.second.first},{it.second.second.firstOrNull()?:0})) ?: run{ msg="No winner — draw"; pot=0; phase="showdown"; activeTurn=-1; revealed=5; return }
+        val bestScore=best.second
+        val winners=scores.filter{ compareHands(it.second, bestScore)==0 }.map{it.first}
+        val share=pot / winners.size
+        if(0 in winners){
+            chips+=share; scope.launch{ save(chips) }
+            msg= if(winners.size==1) "WIN pot $pot! ${rankName(bestScore.first)} — You win $share" else "SPLIT pot $pot — You win $share (${rankName(bestScore.first)})"
+        } else {
+            val w=winners.joinToString(","){ "Bot $it" }
+            msg="$w wins pot $pot with ${rankName(bestScore.first)} — You lose"
+        }
+        pot=0; phase="showdown"; activeTurn=-1; revealed=5
     }
 
     fun checkAdvance(){
@@ -160,44 +187,50 @@ fun TexasHoldemScreen(onBack:()->Unit){
             pot=0; phase="showdown"; activeTurn=-1; revealed=5
             return
         }
+        // all-in fast-forward: if player all-in, skip remaining betting and deal board straight to showdown
+        if(players.getOrNull(0)?.allIn==true){
+            scope.launch{
+                msg="ALL-IN — dealing remaining board..."
+                activeTurn=-1
+                // bots just call to match curBet (no extra raise when player all-in)
+                // already handled in runBotsAfterPlayer, now just reveal
+                if(phase=="preflop"){
+                    for(t in 1..3){ delay(520); revealed=t }
+                    delay(420); revealed=4
+                    delay(420); revealed=5
+                } else if(phase=="flop"){
+                    if(revealed<3) for(t in (revealed+1)..3){ delay(520); revealed=t }
+                    delay(420); revealed=4
+                    delay(420); revealed=5
+                } else if(phase=="turn"){
+                    delay(520); revealed=4
+                    delay(420); revealed=5
+                } else if(phase=="river"){
+                    delay(420); revealed=5
+                }
+                doShowdown()
+            }
+            return
+        }
         val allCalled = players.filter{!it.folded && !it.allIn}.all{ it.bet==curBet }
         if(!allCalled) return
         when(phase){
             "preflop"->{
-                phase="flop"; curBet=0; players=players.map{it.copy(bet=0)}; myBet=0; msg="Flop — 3 kartu dibuka satu-satu..."
+                phase="flop"; curBet=0; raisesThisStreet=0; raiseCapHit=false; players=players.map{it.copy(bet=0)}; msg="Flop — 3 kartu dibuka satu-satu..."
                 scope.launch{
-                    for(t in 1..3){ delay(480); revealed=t }
+                    for(t in 1..3){ delay(520); revealed=t }
                     activeTurn=0; msg="Flop: ${board.take(3).joinToString(" "){it.label()}} — Check / Bet / Fold"
                 }
             }
             "flop"->{
-                phase="turn"; curBet=0; players=players.map{it.copy(bet=0)}; myBet=0; msg="Turn — buka kartu ke-4..."
+                phase="turn"; curBet=0; raisesThisStreet=0; raiseCapHit=false; players=players.map{it.copy(bet=0)}; msg="Turn — buka kartu ke-4..."
                 scope.launch{ delay(520); revealed=4; activeTurn=0; msg="Turn: ${board[3].label()} — Check / Bet / Fold" }
             }
             "turn"->{
-                phase="river"; curBet=0; players=players.map{it.copy(bet=0)}; myBet=0; msg="River — buka kartu terakhir..."
+                phase="river"; curBet=0; raisesThisStreet=0; raiseCapHit=false; players=players.map{it.copy(bet=0)}; msg="River — buka kartu terakhir..."
                 scope.launch{ delay(520); revealed=5; activeTurn=0; msg="River: ${board[4].label()} — Final bet: Check / Bet / Fold" }
             }
-            "river"->{
-                val activePlayers=players.mapIndexed{ idx,p-> idx to p}.filter{!it.second.folded}
-                val scores=activePlayers.map{ (idx,p)->
-                    val sev=p.hole+board
-                    val sc=try{ bestOf7(sev) }catch(_:Exception){ 0 to listOf(0) }
-                    idx to sc
-                }
-                val best=scores.maxWithOrNull(compareBy({it.second.first},{it.second.second.firstOrNull()?:0})) ?: run{ msg="No winner — draw"; pot=0; phase="showdown"; activeTurn=-1; revealed=5; return }
-                val bestScore=best.second
-                val winners=scores.filter{ compareHands(it.second, bestScore)==0 }.map{it.first}
-                val share=pot / winners.size
-                if(0 in winners){
-                    chips+=share; scope.launch{ save(chips) }
-                    msg= if(winners.size==1) "WIN pot $pot! ${rankName(bestScore.first)} — You win $share" else "SPLIT pot $pot — You win $share (${rankName(bestScore.first)})"
-                } else {
-                    val w=winners.joinToString(","){ "Bot $it" }
-                    msg="$w wins pot $pot with ${rankName(bestScore.first)} — You lose"
-                }
-                pot=0; phase="showdown"; activeTurn=-1; revealed=5
-            }
+            "river"-> doShowdown()
             else->{}
         }
     }
@@ -210,7 +243,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
             val p0=d.subList(0,2).toList(); val p1=d.subList(2,4).toList(); val p2=d.subList(4,6).toList(); val p3=d.subList(6,8).toList()
             val bd=d.subList(8,13).toList()
             players=listOf(TPlayer(p0), TPlayer(p1), TPlayer(p2), TPlayer(p3))
-            board=bd; revealed=0; pot=15; curBet=10; myBet=0; phase="preflop"; activeTurn=0
+            board=bd; revealed=0; pot=15; curBet=10; raisesThisStreet=1; raiseCapHit=false; phase="preflop"; activeTurn=0
             players=players.mapIndexed{ idx,p->
                 when(idx){
                     1->p.copy(bet=5, total=5)
@@ -225,6 +258,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
 
     fun playerCheck(){
         if(phase=="showdown"||phase=="idle") return
+        if(players.getOrNull(0)?.allIn==true) return
         val need=curBet - (players.getOrNull(0)?.bet?:0)
         if(need>0){ msg="Need to Call $need or Fold — Check not allowed"; return }
         scope.launch{
@@ -234,15 +268,18 @@ fun TexasHoldemScreen(onBack:()->Unit){
         }
     }
     fun playerCall(){
+        if(players.getOrNull(0)?.allIn==true) return
         val mutable=players.toMutableList()
+        if(mutable.isEmpty()) return
         val need=curBet - mutable[0].bet
+        if(need<=0){ playerCheck(); return }
         val pay=need.coerceAtMost(chips)
-        if(pay<=0){ playerCheck(); return }
+        if(pay<=0) return
         chips-=pay; scope.launch{ save(chips) }
         pot+=pay
-        mutable[0]=mutable[0].copy(bet=curBet, total=mutable[0].total+pay, allIn= chips==0)
+        val isAllIn = chips==0
+        mutable[0]=mutable[0].copy(bet=mutable[0].bet+pay, total=mutable[0].total+pay, allIn=isAllIn)
         players=mutable.toList()
-        myBet=curBet
         scope.launch{
             activeTurn=-1
             runBotsAfterPlayer()
@@ -250,15 +287,19 @@ fun TexasHoldemScreen(onBack:()->Unit){
         }
     }
     fun playerRaise(){
+        if(players.getOrNull(0)?.allIn==true) return
+        if(raisesThisStreet>=maxRaises){ msg="Cap $maxRaises bets/street — Call or Fold only"; return }
         if(chips<=0) return
         val add=raiseAmt
         val newBet=curBet + add
         val need=newBet - players[0].bet
-        if(need>chips) return
+        if(need>chips){ msg="Not enough chips ($chips) for raise $add — All-in?"; return }
         chips-=need; scope.launch{ save(chips) }
         pot+=need
-        curBet=newBet; myBet=newBet
-        players=players.mapIndexed{ idx,p-> if(idx==0) p.copy(bet=newBet, total=p.total+need, allIn=chips==0) else p }
+        curBet=newBet; raisesThisStreet++
+        if(raisesThisStreet>=maxRaises) raiseCapHit=true
+        val isAllIn = chips==0
+        players=players.mapIndexed{ idx,p-> if(idx==0) p.copy(bet=newBet, total=p.total+need, allIn=isAllIn) else p }
         msg="You raise to $newBet — bots to act"
         scope.launch{
             activeTurn=-1
@@ -267,6 +308,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
         }
     }
     fun playerFold(){
+        if(players.getOrNull(0)?.allIn==true) return
         players=players.mapIndexed{ idx,p-> if(idx==0) p.copy(folded=true) else p }
         val win=pot
         msg="You folded — bots win pot $win"
@@ -274,13 +316,14 @@ fun TexasHoldemScreen(onBack:()->Unit){
     }
     fun playerAllIn(){
         if(chips<=0) return
+        if(players.getOrNull(0)?.allIn==true) return
         val need=chips
         val newBet=players[0].bet + need
         pot+=need
         curBet=maxOf(curBet, newBet)
         players=players.mapIndexed{ idx,p-> if(idx==0) p.copy(bet=newBet, total=p.total+need, allIn=true) else p }
         chips=0; scope.launch{ save(0) }
-        msg="ALL-IN $newBet!"
+        msg="ALL-IN $newBet! — bots to match, board auto-deal..."
         scope.launch{
             activeTurn=-1
             runBotsAfterPlayer()
@@ -300,7 +343,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(10.dp)){
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ArcadeTokens.PrimaryContainer).padding(10.dp)){
-                    Text("Hold'em: 2 hole + 5 community (Flop 3 → Turn 1 → River 1). Best 5 of 7 wins. Check / Call / Bet / Raise / Fold / All-in vs 3 bots. Pot shared.", style=MaterialTheme.typography.labelMedium)
+                    Text("Hold'em: 2 hole + 5 community (Flop 3 → Turn 1 → River 1). Best 5 of 7 wins. Check / Call / Bet / Raise / Fold / All-in vs 3 bots. Pot shared. Cap $maxRaises bets/street.", style=MaterialTheme.typography.labelMedium)
                 }
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(
                     when{ msg.startsWith("WIN")||msg.contains("You win") -> ArcadeTokens.AccentContainer
@@ -314,13 +357,23 @@ fun TexasHoldemScreen(onBack:()->Unit){
                     Box(Modifier.clip(RoundedCornerShape(12.dp)).background(ArcadeTokens.SurfaceAlt).padding(horizontal=10.dp, vertical=8.dp)){ Text(phase.uppercase(), fontWeight=FontWeight.Bold, fontSize=12.sp) }
                     Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if(phase=="showdown"||phase=="idle") ArcadeTokens.BgMuted else ArcadeTokens.PrimaryDark).padding(horizontal=10.dp, vertical=8.dp)){ Text("Call: ${(curBet - (players.getOrNull(0)?.bet?:0)).coerceAtLeast(0)}", color=Color.White, fontSize=11.sp, fontWeight=FontWeight.Bold) }
                 }
+                if(raiseCapHit && phase!="idle" && phase!="showdown"){
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(ArcadeTokens.DangerContainer).padding(8.dp), contentAlignment=Alignment.Center){
+                        Text("Cap $maxRaises bets — no more raises this street", fontWeight=FontWeight.Bold, fontSize=11.sp, color=ArcadeTokens.Danger)
+                    }
+                }
                 if(activeTurn>=0 && phase!="idle" && phase!="showdown"){
                     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if(activeTurn==0) ArcadeTokens.PrimaryContainer else ArcadeTokens.SurfaceAlt).padding(8.dp), contentAlignment=Alignment.Center){
                         Text(if(activeTurn==0) "▶ Your turn" else "⏳ Bot $activeTurn thinking...", fontWeight=FontWeight.Bold, fontSize=12.sp, color=ArcadeTokens.Text)
                     }
                 }
+                if(players.getOrNull(0)?.allIn==true && phase!="showdown" && phase!="idle"){
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(ArcadeTokens.DangerContainer).padding(8.dp), contentAlignment=Alignment.Center){
+                        Text("ALL-IN — no more actions, board dealing auto to showdown", fontWeight=FontWeight.Bold, fontSize=11.sp, color=ArcadeTokens.Danger)
+                    }
+                }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF0F3D2C)).padding(10.dp), verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("Board ${revealed}/5", color=Color.White, fontWeight=FontWeight.Bold, fontSize=12.sp)
+                    Text("Board ${revealed}/5 ${if(raiseCapHit)"• Cap" else ""}", color=Color.White, fontWeight=FontWeight.Bold, fontSize=12.sp)
                     Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
                         for(i in 0..4){
                             val c=board.getOrNull(i)
@@ -335,7 +388,6 @@ fun TexasHoldemScreen(onBack:()->Unit){
                         }
                     }
                 }
-                // you — highlight when your turn
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(ArcadeTokens.Surface).border(if(activeTurn==0) 2.dp else 1.dp, if(activeTurn==0) ArcadeTokens.Primary else ArcadeTokens.BgMuted, RoundedCornerShape(14.dp)).padding(10.dp), verticalArrangement=Arrangement.spacedBy(6.dp)){
                     val you=players.getOrNull(0)
                     val sev = if(you!=null && board.isNotEmpty() && revealed>=3) you.hole + board.take(revealed.coerceIn(0, board.size)) else you?.hole ?: listOf()
@@ -355,7 +407,6 @@ fun TexasHoldemScreen(onBack:()->Unit){
                         }
                     }
                 }
-                // bots — highlight active bot, never hide bet (keep total even after street)
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(ArcadeTokens.Surface).padding(10.dp), verticalArrangement=Arrangement.spacedBy(8.dp)){
                     Text("Opponents (3 bots)", fontWeight=FontWeight.Bold, fontSize=12.sp)
                     for(i in 1..3){
@@ -388,7 +439,6 @@ fun TexasHoldemScreen(onBack:()->Unit){
                 if(phase=="showdown" && board.isNotEmpty()){
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ArcadeTokens.SurfaceAlt).padding(10.dp), verticalArrangement=Arrangement.spacedBy(8.dp)){
                         Text("Showdown — Board: ${board.joinToString(" "){it.label()}}", fontSize=11.sp, color=ArcadeTokens.TextMuted, fontWeight=FontWeight.Bold)
-                        // show all opponents cards as cards, not text
                         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
                             for(c in board){
                                 Box(Modifier.size(width=44.dp,height=58.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, ArcadeTokens.BgMuted, RoundedCornerShape(8.dp)), contentAlignment=Alignment.Center){
@@ -433,23 +483,31 @@ fun TexasHoldemScreen(onBack:()->Unit){
                 "idle","showdown"->{
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         Button(onClick={ deal() }, enabled=!dealing && chips>0, modifier=Modifier.weight(1f).height(48.dp)){ Text(if(phase=="showdown") "New Hand" else "Deal (ante 10)") }
-                        if(phase=="showdown") OutlinedButton(onClick={ board=listOf(); players=listOf(); pot=0; revealed=0; phase="idle"; msg="Tap Deal — Texas Hold'em vs 3 bots"; curBet=0; myBet=0; activeTurn=-1 }, modifier=Modifier.height(48.dp)){ Text("Clear") }
+                        if(phase=="showdown") OutlinedButton(onClick={ board=listOf(); players=listOf(); pot=0; revealed=0; phase="idle"; msg="Tap Deal — Texas Hold'em vs 3 bots"; curBet=0; activeTurn=-1; raisesThisStreet=0; raiseCapHit=false }, modifier=Modifier.height(48.dp)){ Text("Clear") }
                     }
                 }
                 else->{
-                    val need=(curBet - (players.getOrNull(0)?.bet?:0)).coerceAtLeast(0)
-                    val canCheck=need==0
-                    Column(verticalArrangement=Arrangement.spacedBy(8.dp), modifier=Modifier.fillMaxWidth().navigationBarsPadding()){
-                        Row(horizontalArrangement=Arrangement.spacedBy(8.dp), modifier=Modifier.fillMaxWidth()){
-                            if(canCheck) Button(onClick={ playerCheck() }, modifier=Modifier.weight(1f).height(44.dp)){ Text("Check") }
-                            else Button(onClick={ playerCall() }, modifier=Modifier.weight(1f).height(44.dp)){ Text("Call $need") }
-                            Button(onClick={ playerRaise() }, enabled=chips>need, modifier=Modifier.weight(1f).height(44.dp)){ Text("Raise +$raiseAmt") }
+                    val youAllIn = players.getOrNull(0)?.allIn==true
+                    if(youAllIn){
+                        Box(Modifier.fillMaxWidth().navigationBarsPadding().clip(RoundedCornerShape(12.dp)).background(ArcadeTokens.DangerContainer).padding(12.dp), contentAlignment=Alignment.Center){
+                            Text("ALL-IN — waiting for board & showdown", fontWeight=FontWeight.Bold, color=ArcadeTokens.Danger)
                         }
-                        Row(horizontalArrangement=Arrangement.spacedBy(8.dp), modifier=Modifier.fillMaxWidth()){
-                            OutlinedButton(onClick={ playerFold() }, modifier=Modifier.weight(1f).height(44.dp)){ Text("Fold") }
-                            Button(onClick={ playerAllIn() }, enabled=chips>0, modifier=Modifier.weight(1f).height(44.dp), colors=ButtonDefaults.buttonColors(containerColor=ArcadeTokens.Danger)){ Text("All-in ($chips)") }
-                            Surface(shape=RoundedCornerShape(10.dp), color=ArcadeTokens.Surface, modifier=Modifier.clickable{ raiseAmt=if(raiseAmt==20) 50 else if(raiseAmt==50) 100 else 20 }.height(44.dp)){
-                                Box(Modifier.padding(horizontal=12.dp), contentAlignment=Alignment.Center){ Text("+$raiseAmt", fontWeight=FontWeight.Bold) }
+                    } else {
+                        val need=(curBet - (players.getOrNull(0)?.bet?:0)).coerceAtLeast(0)
+                        val canCheck=need==0
+                        val canRaise = raisesThisStreet < maxRaises && chips > need
+                        Column(verticalArrangement=Arrangement.spacedBy(8.dp), modifier=Modifier.fillMaxWidth().navigationBarsPadding()){
+                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp), modifier=Modifier.fillMaxWidth()){
+                                if(canCheck) Button(onClick={ playerCheck() }, modifier=Modifier.weight(1f).height(44.dp)){ Text("Check") }
+                                else Button(onClick={ playerCall() }, enabled=chips>0, modifier=Modifier.weight(1f).height(44.dp)){ Text("Call $need") }
+                                Button(onClick={ playerRaise() }, enabled=canRaise, modifier=Modifier.weight(1f).height(44.dp)){ Text("Raise +$raiseAmt") }
+                            }
+                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp), modifier=Modifier.fillMaxWidth()){
+                                OutlinedButton(onClick={ playerFold() }, modifier=Modifier.weight(1f).height(44.dp)){ Text("Fold") }
+                                Button(onClick={ playerAllIn() }, enabled=chips>0, modifier=Modifier.weight(1f).height(44.dp), colors=ButtonDefaults.buttonColors(containerColor=ArcadeTokens.Danger)){ Text("All-in ($chips)") }
+                                Surface(shape=RoundedCornerShape(10.dp), color=ArcadeTokens.Surface, modifier=Modifier.clickable{ raiseAmt=if(raiseAmt==20) 50 else if(raiseAmt==50) 100 else 20 }.height(44.dp)){
+                                    Box(Modifier.padding(horizontal=12.dp), contentAlignment=Alignment.Center){ Text("+$raiseAmt", fontWeight=FontWeight.Bold) }
+                                }
                             }
                         }
                     }
@@ -465,10 +523,9 @@ fun TexasHoldemScreen(onBack:()->Unit){
     if(showHelp){
         AlertDialog(onDismissRequest={showHelp=false}, title={Text("Texas Hold'em")}, text={
             Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
-                Text("2 hole cards + 5 community. Best 5 of 7 wins.", style=MaterialTheme.typography.bodyMedium)
-                Text("Street: Pre-flop → Flop (3) → Turn (1) → River (1) → Showdown. Each street: Check / Call / Bet / Raise / Fold / All-in.", fontSize=12.sp)
-                Text("Blinds 5/10 start, bots act after you one by one (highlight). Board dibuka satu-satu biar gak buru-buru. Pot & Total bet tetap kelihatan.", fontSize=12.sp, color=ArcadeTokens.TextMuted)
-                Text("≠ Poker lama: itu 5-Card Draw (5 kartu draw vs dealer). Hold'em ada lawan & board keluar satu-satu.", fontSize=11.sp, color=ArcadeTokens.TextMuted)
+                Text("2 hole + 5 community. Best 5 of 7. Cap $maxRaises bets/street — setelah cap cuma Call/Fold.", style=MaterialTheme.typography.bodyMedium)
+                Text("ALL-IN: habis chips → gak bisa Check/Call/Bet lagi, board auto-deal satu-satu sampai showdown, gak minta coin lagi.", fontSize=12.sp)
+                Text("Blinds 5/10, highlight turn, board dibuka 1-1 biar tempo pelan.", fontSize=12.sp, color=ArcadeTokens.TextMuted)
             }
         }, confirmButton={ TextButton(onClick={showHelp=false}){Text("Got it")}} )
     }
