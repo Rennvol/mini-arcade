@@ -100,23 +100,109 @@ fun TexasHoldemScreen(onBack:()->Unit){
     LaunchedEffect(Unit){ try{ ctx.dataStore.data.collect{ chips=it[Prefs.ARCADE_CHIPS]?:1000 } }catch(_:Exception){} }
     suspend fun save(c:Int){ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=c } }catch(_:Exception){} }
 
+    // ponytail: 3 bot personalities hard — tight/bluffy/balanced, outs+pot-odds+bluff semi, no solver
+    fun preflopScore(hole:List<TCard>):Int {
+        if(hole.size<2) return 0
+        val a=hole[0]; val b=hole[1]
+        val pair = a.rank==b.rank
+        val suited = a.suit==b.suit
+        val gap = kotlin.math.abs(a.rank-b.rank)
+        val hi = maxOf(a.rank,b.rank); val lo = minOf(a.rank,b.rank)
+        if(pair){
+            return when{ hi==14->9; hi>=13->8; hi>=11->7; hi>=9->6; hi>=7->5; else->4 }
+        }
+        var s=0
+        if(hi==14) s+=3
+        else if(hi>=12) s+=2
+        else if(hi>=10) s+=1
+        if(suited) s+=2
+        if(gap==1) s+=2
+        else if(gap==2) s+=1
+        else if(gap==3 && suited) s+=1
+        if(hi>=11 && lo>=10) s+=1
+        return s.coerceIn(0,9)
+    }
+    fun hasFlushDraw(hole:List<TCard>, board:List<TCard>):Boolean {
+        val all=hole+board
+        for(s in TSuit.values()) if(all.count{it.suit==s}>=4) return true
+        return false
+    }
+    fun hasStraightDraw(hole:List<TCard>, board:List<TCard>):Boolean {
+        val ranks=(hole+board).map{it.rank}.toSet()
+        val ext=ranks + (if(14 in ranks) setOf(1) else emptySet())
+        for(start in 1..10){
+            val need=(start..start+4).toSet()
+            val have=need.intersect(ext).size
+            if(have==4) return true
+        }
+        return false
+    }
+    fun isBoardScary(b:List<TCard>):Boolean {
+        if(b.size<3) return false
+        val ranks=b.map{it.rank}
+        if(ranks.distinct().size <= b.size-1) return true // paired
+        if(b.groupBy{it.suit}.any{it.value.size>=3}) return true // flush possible
+        val s=b.map{it.rank}.toSet() + (if(14 in b.map{it.rank}) setOf(1) else emptySet())
+        for(st in 1..10) if((st..st+4).all{it in s}) return true
+        return false
+    }
     fun botAction(idx:Int, cur:Int, raises:Int):String { return try{
         val p=players.getOrNull(idx)?: return "fold"
         if(p.folded || p.allIn) return "check"
-        val sev = p.hole + board.take(revealed.coerceIn(0, board.size))
-        val strength = if(sev.size<5){
-            val r = p.hole.map{it.rank}.maxOrNull()?:2
-            when{ r>=13->2; r>=11->1; else->0}
-        } else {
-            val ev = try{ bestOf7((sev.take(7) + List((7-sev.size).coerceAtLeast(0)){ TCard(TSuit.Clubs,2)}).take(7)) }catch(_:Exception){ 0 to listOf(0) }
-            ev.first
-        }
         val toCall = cur - p.bet
+        val potOdds = if(pot+toCall==0) 0.0 else toCall.toDouble()/(pot+toCall).toDouble()
         val canRaise = raises < maxRaises
-        if(strength>=6 && canRaise) "raise"
-        else if(strength>=3) if(toCall==0) "check" else "call"
-        else if(strength>=1) if(toCall==0) "check" else if(toCall<=10) "call" else "fold"
-        else if(toCall==0) "check" else if(toCall<=5 && kotlin.random.Random.nextBoolean()) "call" else "fold"
+        // personality: 1 tight-A, 2 bluffy, 3 balanced
+        val style = when(idx){ 1->"tight"; 2->"bluffy"; else->"balanced" }
+        if(revealed < 3){
+            val sc=preflopScore(p.hole)
+            val bluffRoll = kotlin.random.Random.nextInt(100)
+            if(style=="tight"){
+                if(sc>=7 && canRaise) return "raise"
+                if(sc>=5) return if(toCall==0) "check" else if(toCall<=15) "call" else "fold"
+                if(sc>=3) return if(toCall==0) "check" else if(toCall<=8) "call" else "fold"
+                return if(toCall==0) "check" else "fold"
+            }
+            if(style=="bluffy"){
+                if(sc>=6 && canRaise) return "raise"
+                if(bluffRoll < 18 && canRaise && toCall<=20) return "raise" // pure bluff 18%
+                if(sc>=3) return if(toCall==0) "check" else if(toCall<=12) "call" else "fold"
+                return if(toCall==0) "check" else if(toCall<=6 && bluffRoll<30) "call" else "fold"
+            }
+            // balanced
+            if(sc>=7 && canRaise) return "raise"
+            if(sc>=4) return if(toCall==0) "check" else if(toCall<=12) "call" else "fold"
+            return if(toCall==0) "check" else if(bluffRoll<12 && canRaise) "raise" else "fold"
+        } else {
+            val sev = p.hole + board.take(revealed.coerceIn(0, board.size))
+            val ev = try{ bestOf7((sev.take(7) + List((7-sev.size).coerceAtLeast(0)){ TCard(TSuit.Clubs,2)}).take(7)) }catch(_:Exception){ 0 to listOf(0) }
+            val strength=ev.first
+            val drawFlush=hasFlushDraw(p.hole, board.take(revealed))
+            val drawStraight=hasStraightDraw(p.hole, board.take(revealed))
+            val scary=isBoardScary(board.take(revealed))
+            val draw = drawFlush || drawStraight
+            val r=kotlin.random.Random.nextInt(100)
+            if(style=="tight"){
+                if(strength>=6 && canRaise) return "raise"
+                if(strength>=4) return if(toCall==0) "check" else "call"
+                if(draw && toCall<=12 && potOdds<0.3) return "call" // chase with odds
+                return if(toCall==0) "check" else if(toCall<=6) "call" else "fold"
+            }
+            if(style=="bluffy"){
+                if(strength>=5 && canRaise) return "raise"
+                if(draw && canRaise && r<45) return "raise" // semi-bluff
+                if(strength<=2 && scary && canRaise && r<28) return "raise" // scare bluff
+                if(strength>=2) return if(toCall==0) "check" else if(toCall<=15) "call" else "fold"
+                return if(toCall==0) "check" else if(toCall<=8 && r<35) "call" else "fold"
+            }
+            // balanced
+            if(strength>=6 && canRaise) return "raise"
+            if(strength>=3) return if(toCall==0) "check" else "call"
+            if(draw && canRaise && r<30) return "raise"
+            if(draw) return if(potOdds<0.28) "call" else if(toCall<=10) "call" else "fold"
+            if(strength<=1 && scary && canRaise && r<15) return "raise"
+            return if(toCall==0) "check" else if(toCall<=8) "call" else "fold"
+        }
     } catch(_:Exception){ "check" }
     }
 
