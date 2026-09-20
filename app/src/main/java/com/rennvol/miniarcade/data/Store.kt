@@ -16,7 +16,7 @@ object Prefs {
 
 fun Context.tetrisHiFlow() = dataStore.data.map { it[Prefs.TETRIS_HI] ?: 0 }
 fun Context.best2048Flow() = dataStore.data.map { it[Prefs.S2048_BEST] ?: 0 }
-suspend fun Context.updateHighScore(key: PreferencesKey<Int>, value: Int) {
+suspend fun Context.updateHighScore(key: Preferences.Key<Int>, value: Int) {
     dataStore.edit { p ->
         val cur = p[key] ?: 0
         if (value > cur) p[key] = value
