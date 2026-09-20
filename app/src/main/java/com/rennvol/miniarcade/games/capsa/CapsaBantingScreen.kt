@@ -137,7 +137,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
     var hands by remember{ mutableStateOf(listOf<List<CCard>>()) }
     var turn by remember{ mutableIntStateOf(0) }
     var table by remember{ mutableStateOf<Classed?>(null) }
-    var lastPlayer by remember{ mutableIntStateOf<Int?>(null) }
+    var lastPlayer:Int? by remember{ mutableStateOf<Int?>(null) }
     var passCount by remember{ mutableIntStateOf(0) }
     var msg by remember{ mutableStateOf("Tap Deal — Capsa Banting vs 3 bots") }
     var phase by remember{ mutableStateOf("idle") } // idle, play, win
