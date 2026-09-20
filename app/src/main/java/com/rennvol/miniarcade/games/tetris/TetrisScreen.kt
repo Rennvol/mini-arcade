@@ -104,7 +104,7 @@ fun TetrisScreen(onBack: ()->Unit) {
     }
 
     Surface(color=ArcadeTokens.Bg, modifier=Modifier.fillMaxSize()){
-        Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding().padding(12.dp), verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp), verticalArrangement=Arrangement.spacedBy(10.dp)){
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically){
                 SmallBtn(Icons.Filled.ArrowBack, "back", onBack)
                 Text("TETRIS", style=MaterialTheme.typography.titleLarge)
@@ -115,47 +115,55 @@ fun TetrisScreen(onBack: ()->Unit) {
                 ScoreBox("Best", hi, Modifier.weight(1f))
                 NextBox(next, Modifier.weight(1f))
             }
-            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(ArcadeTokens.Text).padding(8.dp), contentAlignment=Alignment.Center){
-                val gy = ghostY()
-                Canvas(Modifier.fillMaxSize().aspectRatio(W.toFloat()/H.toFloat())){
-                    val cellW = size.width / W; val cellH = size.height / H
-                    for(r in 0 until H) for(c in 0 until W){
-                        val col = board[r][c]
-                        if(col!=null) drawRect(col, Offset(c*cellW, r*cellH), Size(cellW-1, cellH-1))
-                        else drawRect(Color(0x1AFFFFFF), Offset(c*cellW, r*cellH), Size(cellW-1, cellH-1))
-                    }
-                    for((dx,dy) in rot){
-                        val gx=px+dx; val gyy=gy+dy
-                        if(gyy in 0 until H && gx in 0 until W && gy!=py) drawRect(ArcadeTokens.Ghost, Offset(gx*cellW, gyy*cellH), Size(cellW-1, cellH-1))
-                    }
-                    for((dx,dy) in rot){
-                        val x=px+dx; val y=py+dy
-                        if(y in 0 until H && x in 0 until W){
-                            drawRect(cur.color, Offset(x*cellW, y*cellH), Size(cellW-1, cellH-1))
-                            drawRect(Color.White.copy(alpha=0.35f), Offset(x*cellW, y*cellH), Size(cellW-1, 3f))
+            // board: weight 1f + BoxWithConstraints ensures 20th row visible, never under control bar
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(ArcadeTokens.Text).padding(8.dp), contentAlignment=Alignment.Center){
+                val cellByW = maxWidth / W
+                val cellByH = maxHeight / H
+                val cell = minOf(cellByW, cellByH)
+                val bw = cell * W
+                val bh = cell * H
+                Box(Modifier.size(bw, bh), contentAlignment=Alignment.Center){
+                    val gy = ghostY()
+                    Canvas(Modifier.fillMaxSize()){
+                        val cellW = size.width / W; val cellH = size.height / H
+                        for(r in 0 until H) for(c in 0 until W){
+                            val col = board[r][c]
+                            if(col!=null) drawRect(col, Offset(c*cellW, r*cellH), Size(cellW-1, cellH-1))
+                            else drawRect(Color(0x1AFFFFFF), Offset(c*cellW, r*cellH), Size(cellW-1, cellH-1))
+                        }
+                        for((dx,dy) in rot){
+                            val gx=px+dx; val gyy=gy+dy
+                            if(gyy in 0 until H && gx in 0 until W && gy!=py) drawRect(ArcadeTokens.Ghost, Offset(gx*cellW, gyy*cellH), Size(cellW-1, cellH-1))
+                        }
+                        for((dx,dy) in rot){
+                            val x=px+dx; val y=py+dy
+                            if(y in 0 until H && x in 0 until W){
+                                drawRect(cur.color, Offset(x*cellW, y*cellH), Size(cellW-1, cellH-1))
+                                drawRect(Color.White.copy(alpha=0.35f), Offset(x*cellW, y*cellH), Size(cellW-1, 3f))
+                            }
                         }
                     }
-                }
-                if(over){
-                    Box(Modifier.fillMaxSize().background(Color(0xAA1A1A2E)), contentAlignment=Alignment.Center){
-                        Column(horizontalAlignment=Alignment.CenterHorizontally, verticalArrangement=Arrangement.spacedBy(12.dp)){
-                            Text("Game Over", style=MaterialTheme.typography.displayMedium, color=Color.White)
-                            Text("Score "+score, color=Color.White)
-                            Button(onClick={ board=Array(H){ arrayOfNulls(W) }; score=0; over=false; paused=false; tickMs=520; cur=PIECES.random(); next=PIECES.random(); rot=cur.shape; px=3; py=0 }, modifier=Modifier.height(44.dp)){ Text("Restart") }
+                    if(over){
+                        Box(Modifier.fillMaxSize().background(Color(0xAA1A1A2E)), contentAlignment=Alignment.Center){
+                            Column(horizontalAlignment=Alignment.CenterHorizontally, verticalArrangement=Arrangement.spacedBy(12.dp)){
+                                Text("Game Over", style=MaterialTheme.typography.displayMedium, color=Color.White)
+                                Text("Score "+score, color=Color.White)
+                                Button(onClick={ board=Array(H){ arrayOfNulls(W) }; score=0; over=false; paused=false; tickMs=520; cur=PIECES.random(); next=PIECES.random(); rot=cur.shape; px=3; py=0 }, modifier=Modifier.height(44.dp)){ Text("Restart") }
+                            }
                         }
-                    }
-                } else if(paused){
-                    Box(Modifier.fillMaxSize().background(Color(0xAA1A1A2E)), contentAlignment=Alignment.Center){
-                        Column(horizontalAlignment=Alignment.CenterHorizontally){
-                            Text("Paused", style=MaterialTheme.typography.displayMedium, color=Color.White)
-                            Spacer(Modifier.height(12.dp))
-                            Button(onClick={paused=false}, modifier=Modifier.height(44.dp)){ Text("Resume") }
+                    } else if(paused){
+                        Box(Modifier.fillMaxSize().background(Color(0xAA1A1A2E)), contentAlignment=Alignment.Center){
+                            Column(horizontalAlignment=Alignment.CenterHorizontally){
+                                Text("Paused", style=MaterialTheme.typography.displayMedium, color=Color.White)
+                                Spacer(Modifier.height(12.dp))
+                                Button(onClick={paused=false}, modifier=Modifier.height(44.dp)){ Text("Resume") }
+                            }
                         }
                     }
                 }
             }
-            // fixed control bar — never clips board (board is weight 1f above)
-            Row(Modifier.fillMaxWidth().padding(bottom=12.dp), horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            // fixed 56dp control bar with navigationBarsPadding — never overlaps board
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().height(56.dp), horizontalArrangement=Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically){
                 CtrlBtn("◀", Modifier.weight(1f)){ move(-1) }
                 CtrlBtn("▼", Modifier.weight(1f)){ softDrop() }
                 CtrlBtn("▶", Modifier.weight(1f)){ move(1) }
