@@ -445,10 +445,9 @@ fun CapsaBantingScreen(onBack:()->Unit){
             when(phase){
                 "idle","win"->{
                     Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                        val lvl=when(difficulty){0->"EZY";1->"MDM";else->"HRD"}
-                        FilterChip(selected=difficulty==0, onClick={difficulty=0}, label={Text("Easy")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)})
-                        FilterChip(selected=difficulty==1, onClick={difficulty=1}, label={Text("Medium")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)})
-                        FilterChip(selected=difficulty==2, onClick={difficulty=2}, label={Text("Hard")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)})
+                        FilterChip(selected=difficulty==0, onClick={difficulty=0}, label={Text("Easy")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)))
+                        FilterChip(selected=difficulty==1, onClick={difficulty=1}, label={Text("Medium")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)))
+                        FilterChip(selected=difficulty==2, onClick={difficulty=2}, label={Text("Hard")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)))
                     }
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         Button(onClick={ deal() }, modifier=Modifier.weight(1f).height(48.dp)){ Text(if(phase=="win") "New Game" else "Deal") }
