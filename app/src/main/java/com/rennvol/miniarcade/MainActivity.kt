@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.rennvol.miniarcade.games.archer.ArcherScreen
 import com.rennvol.miniarcade.games.blackjack.BlackjackScreen
 import com.rennvol.miniarcade.games.flappy.FlappyBirdScreen
 import com.rennvol.miniarcade.games.game2048.Game2048Screen
@@ -50,7 +51,8 @@ class MainActivity : ComponentActivity() {
                         onBlackjack = { nav.navigate("blackjack") },
                         onFlappy = { nav.navigate("flappy") },
                         onPaintball = { nav.navigate("paintball") },
-                        onShooter = { nav.navigate("shooter") }
+                        onShooter = { nav.navigate("shooter") },
+                        onArcher = { nav.navigate("archer") }
                     ) }
                     composable("tetris") { TetrisScreen(onBack = { nav.popBackStack() }) }
                     composable("solitaire") { SolitaireScreen(onBack = { nav.popBackStack() }) }
@@ -61,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     composable("flappy") { FlappyBirdScreen(onBack = { nav.popBackStack() }) }
                     composable("paintball") { PaintballScreen(onBack = { nav.popBackStack() }) }
                     composable("shooter") { ShooterScreen(onBack = { nav.popBackStack() }) }
+                    composable("archer") { ArcherScreen(onBack = { nav.popBackStack() }) }
                 }
             }
         }
@@ -70,7 +73,7 @@ class MainActivity : ComponentActivity() {
 data class GameCard(val title: String, val desc: String, val icon: ImageVector, val tint: androidx.compose.ui.graphics.Color, val route: String)
 
 @Composable
-fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit, onPaintball: ()->Unit, onShooter: ()->Unit) {
+fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit, onPaintball: ()->Unit, onShooter: ()->Unit, onArcher: ()->Unit) {
     val games = listOf(
         GameCard("Tetris","10x20 stack & clear", Icons.Filled.ViewModule, ArcadeTokens.Primary, "tetris"),
         GameCard("Solitaire","Klondike classic", Icons.Filled.Style, ArcadeTokens.Accent, "solitaire"),
@@ -80,9 +83,10 @@ fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMi
         GameCard("Blackjack","21 vs dealer", Icons.Filled.Style, ArcadeTokens.TetrisZ, "blackjack"),
         GameCard("Flappy Bird","Tap to earn +5 chips", Icons.Filled.Flight, ArcadeTokens.Secondary, "flappy"),
         GameCard("Paintball","Tap to shoot • score×3", Icons.Filled.SportsEsports, ArcadeTokens.Danger, "paintball"),
-        GameCard("Shooter","Plane shooter • upgrades", Icons.Filled.FlightTakeoff, ArcadeTokens.PrimaryDark, "shooter"),
+        GameCard("Shooter","Boss + 9 upgrades", Icons.Filled.FlightTakeoff, ArcadeTokens.PrimaryDark, "shooter"),
+        GameCard("Archer","Hold power + angle", Icons.Filled.GpsFixed, ArcadeTokens.Accent, "archer"),
     )
-    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy, onPaintball, onShooter)
+    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy, onPaintball, onShooter, onArcher)
     Surface(color = ArcadeTokens.Bg, modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -95,10 +99,9 @@ fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMi
                 Spacer(Modifier.height(6.dp))
                 Text("Tap a game to play. Scores saved on device.", style = MaterialTheme.typography.bodyMedium)
             }
-            // chunk 2 per row to handle odd count
             for(chunk in games.chunked(2)){
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for((idx, g) in chunk.withIndex()){
+                    for(g in chunk){
                         val globalIdx = games.indexOf(g)
                         GameBentoCard(g, modifier = Modifier.weight(1f), onClick = actions[globalIdx])
                     }
