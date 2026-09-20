@@ -339,7 +339,11 @@ fun TexasHoldemScreen(onBack:()->Unit){
                                 Text(h.label(), color=h.col, fontWeight=FontWeight.Black, fontSize=15.sp)
                             }
                         }
-                        if(you==null) repeat(2){ Box(Modifier.size(width=56.dp,height=76.dp).clip(RoundedCornerShape(10.dp)).background(ArcadeTokens.BgMuted), contentAlignment=Alignment.Center){ Text("—", color=ArcadeTokens.TextFaint) }) }
+                        if(you==null){
+                            repeat(2){
+                                Box(Modifier.size(width=56.dp,height=76.dp).clip(RoundedCornerShape(10.dp)).background(ArcadeTokens.BgMuted), contentAlignment=Alignment.Center){ Text("—", color=ArcadeTokens.TextFaint) }
+                            }
+                        }
                     }
                 }
                 // bots
@@ -362,7 +366,9 @@ fun TexasHoldemScreen(onBack:()->Unit){
                                     if(sc!=null) Text(rankName(sc.first), fontSize=10.sp, color=ArcadeTokens.TextMuted)
                                 }
                             } else {
-                                repeat(2){ Box(Modifier.size(width=44.dp,height=58.dp).clip(RoundedCornerShape(8.dp)).background(ArcadeTokens.BgMuted), contentAlignment=Alignment.Center){ Text("—", color=ArcadeTokens.TextFaint) }) }
+                                repeat(2){
+                                    Box(Modifier.size(width=44.dp,height=58.dp).clip(RoundedCornerShape(8.dp)).background(ArcadeTokens.BgMuted), contentAlignment=Alignment.Center){ Text("—", color=ArcadeTokens.TextFaint) }
+                                }
                             }
                         }
                     }
