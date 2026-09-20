@@ -152,7 +152,7 @@ fun ShooterScreen(onBack: ()->Unit){
             }
             Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0F1220))){
                 Canvas(modifier=Modifier.fillMaxSize().pointerInput(Unit){
-                    detectDragGestures{ chg,_ -> playerX = (playerX + chg.x).coerceIn(28f, cw-28f) }
+                    detectDragGestures{ _, drag -> playerX = (playerX + drag.x).coerceIn(28f, cw-28f) }
                 }){
                     cw=size.width; ch=size.height
                     drawRect(Color(0xFF0F1220), size=size)
