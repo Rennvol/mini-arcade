@@ -33,6 +33,7 @@ import com.rennvol.miniarcade.games.shooter.ShooterScreen
 import com.rennvol.miniarcade.games.texas.TexasHoldemScreen
 import com.rennvol.miniarcade.games.capsa.CapsaBantingScreen
 import com.rennvol.miniarcade.games.uno.UnoScreen
+import com.rennvol.miniarcade.games.oldmaid.OldMaidScreen
 import com.rennvol.miniarcade.games.snakes.SnakesLadderScreen
 import com.rennvol.miniarcade.games.solitaire.SolitaireScreen
 import com.rennvol.miniarcade.games.tetris.TetrisScreen
@@ -60,7 +61,8 @@ class MainActivity : ComponentActivity() {
                         onTexas = { nav.navigate("texas") },
                         onSnakes = { nav.navigate("snakes") },
                         onCapsa = { nav.navigate("capsa") },
-                        onUno = { nav.navigate("uno") }
+                        onUno = { nav.navigate("uno") },
+                        onOldMaid = { nav.navigate("oldmaid") }
                     ) }
                     composable("tetris") { TetrisScreen(onBack = { nav.popBackStack() }) }
                     composable("solitaire") { SolitaireScreen(onBack = { nav.popBackStack() }) }
@@ -76,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     composable("snakes") { SnakesLadderScreen(onBack = { nav.popBackStack() }) }
                     composable("capsa") { CapsaBantingScreen(onBack = { nav.popBackStack() }) }
                     composable("uno") { UnoScreen(onBack = { nav.popBackStack() }) }
+                    composable("oldmaid") { OldMaidScreen(onBack = { nav.popBackStack() }) }
                 }
             }
         }
@@ -85,7 +88,7 @@ class MainActivity : ComponentActivity() {
 data class GameCard(val title: String, val desc: String, val icon: ImageVector, val tint: androidx.compose.ui.graphics.Color, val route: String)
 
 @Composable
-fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit, onPaintball: ()->Unit, onShooter: ()->Unit, onArcher: ()->Unit, onTexas: ()->Unit, onSnakes: ()->Unit, onCapsa: ()->Unit, onUno: ()->Unit) {
+fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit, onPaintball: ()->Unit, onShooter: ()->Unit, onArcher: ()->Unit, onTexas: ()->Unit, onSnakes: ()->Unit, onCapsa: ()->Unit, onUno: ()->Unit, onOldMaid: ()->Unit) {
     val games = listOf(
         GameCard("Tetris","10x20 stack & clear", Icons.Filled.ViewModule, ArcadeTokens.Primary, "tetris"),
         GameCard("Solitaire","Klondike classic", Icons.Filled.Style, ArcadeTokens.Accent, "solitaire"),
@@ -101,8 +104,9 @@ fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMi
         GameCard("Ular Tangga","Roll 1-6 • papan acak tiap stage", Icons.Filled.Casino, ArcadeTokens.Secondary, "snakes"),
         GameCard("Capsa Banting","Big Two 3♦ mulai • habiskan 13 kartu", Icons.Filled.Style, ArcadeTokens.Primary, "capsa"),
         GameCard("UNO","Warna/angka sama • Wild • Skip/Reverse/+2/+4", Icons.Filled.Style, ArcadeTokens.Accent, "uno"),
+        GameCard("Old Maid","Ambil kartu lawan • pair warna sama • Joker kalah", Icons.Filled.Style, ArcadeTokens.Danger, "oldmaid"),
     )
-    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy, onPaintball, onShooter, onArcher, onTexas, onSnakes, onCapsa, onUno)
+    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy, onPaintball, onShooter, onArcher, onTexas, onSnakes, onCapsa, onUno, onOldMaid)
     Surface(color = ArcadeTokens.Bg, modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
