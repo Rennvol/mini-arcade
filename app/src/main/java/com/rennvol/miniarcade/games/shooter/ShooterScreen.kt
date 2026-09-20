@@ -30,6 +30,7 @@ import com.rennvol.miniarcade.ui.theme.ArcadeTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.sin
 import kotlin.random.Random
 
 private enum class EType(val hp:Int, val speedMul:Float, val w:Float, val h:Float, val col:Color){

@@ -214,7 +214,7 @@ fun ArcherScreen(onBack:()->Unit){
                     Column(verticalArrangement=Arrangement.spacedBy(6.dp)){
                         Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween){ Text("POWER", style=MaterialTheme.typography.labelSmall, color=ArcadeTokens.TextFaint); Text("${power.toInt()}%", fontWeight=FontWeight.Black, fontSize=12.sp, color=when{power>85->ArcadeTokens.Danger; power>60->Color(0xFFF39C12); else->ArcadeTokens.Accent}) }
                         Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(6.dp)).background(ArcadeTokens.BgMuted)){
-                            Box(Modifier.fillMaxWidth(power/100f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Brush.horizontalGradient(listOf(ArcadeTokens.Accent, Color(0xFFFDCB6E), ArcadeTokens.Danger)))))
+                            Box(Modifier.fillMaxWidth(power/100f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(Brush.horizontalGradient(listOf(ArcadeTokens.Accent, Color(0xFFFDCB6E), ArcadeTokens.Danger))))
                         }
                     }
                 }
