@@ -30,6 +30,7 @@ import com.rennvol.miniarcade.games.minesweeper.MinesweeperScreen
 import com.rennvol.miniarcade.games.poker.PokerScreen
 import com.rennvol.miniarcade.games.paintball.PaintballScreen
 import com.rennvol.miniarcade.games.shooter.ShooterScreen
+import com.rennvol.miniarcade.games.texas.TexasHoldemScreen
 import com.rennvol.miniarcade.games.solitaire.SolitaireScreen
 import com.rennvol.miniarcade.games.tetris.TetrisScreen
 import com.rennvol.miniarcade.ui.theme.ArcadeTokens
@@ -52,7 +53,8 @@ class MainActivity : ComponentActivity() {
                         onFlappy = { nav.navigate("flappy") },
                         onPaintball = { nav.navigate("paintball") },
                         onShooter = { nav.navigate("shooter") },
-                        onArcher = { nav.navigate("archer") }
+                        onArcher = { nav.navigate("archer") },
+                        onTexas = { nav.navigate("texas") }
                     ) }
                     composable("tetris") { TetrisScreen(onBack = { nav.popBackStack() }) }
                     composable("solitaire") { SolitaireScreen(onBack = { nav.popBackStack() }) }
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
                     composable("paintball") { PaintballScreen(onBack = { nav.popBackStack() }) }
                     composable("shooter") { ShooterScreen(onBack = { nav.popBackStack() }) }
                     composable("archer") { ArcherScreen(onBack = { nav.popBackStack() }) }
+                    composable("texas") { TexasHoldemScreen(onBack = { nav.popBackStack() }) }
                 }
             }
         }
@@ -73,7 +76,7 @@ class MainActivity : ComponentActivity() {
 data class GameCard(val title: String, val desc: String, val icon: ImageVector, val tint: androidx.compose.ui.graphics.Color, val route: String)
 
 @Composable
-fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit, onPaintball: ()->Unit, onShooter: ()->Unit, onArcher: ()->Unit) {
+fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit, onPaintball: ()->Unit, onShooter: ()->Unit, onArcher: ()->Unit, onTexas: ()->Unit) {
     val games = listOf(
         GameCard("Tetris","10x20 stack & clear", Icons.Filled.ViewModule, ArcadeTokens.Primary, "tetris"),
         GameCard("Solitaire","Klondike classic", Icons.Filled.Style, ArcadeTokens.Accent, "solitaire"),
@@ -85,8 +88,9 @@ fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMi
         GameCard("Paintball","Tap to shoot • score×3", Icons.Filled.SportsEsports, ArcadeTokens.Danger, "paintball"),
         GameCard("Shooter","Boss + 9 upgrades", Icons.Filled.FlightTakeoff, ArcadeTokens.PrimaryDark, "shooter"),
         GameCard("Archer","Hold power + angle", Icons.Filled.GpsFixed, ArcadeTokens.Accent, "archer"),
+        GameCard("Texas Hold'em","2 kartu vs 3 • board satu-satu", Icons.Filled.Groups, ArcadeTokens.PrimaryDark, "texas"),
     )
-    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy, onPaintball, onShooter, onArcher)
+    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy, onPaintball, onShooter, onArcher, onTexas)
     Surface(color = ArcadeTokens.Bg, modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),

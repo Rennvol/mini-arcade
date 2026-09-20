@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -139,7 +141,8 @@ fun PokerScreen(onBack:()->Unit){
     fun newHand(){ if(chips<=0){ chips=1000; scope.launch{ save(1000) } }; phase="bet"; msg="Place bet & tap Deal"; player=listOf(); dealer=listOf(); holds=BooleanArray(5){false}; delta=0 }
 
     Surface(color=ArcadeTokens.Bg, modifier=Modifier.fillMaxSize()){
-        Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Column(Modifier.fillMaxSize().padding(12.dp)){
+            Column(Modifier.weight(1f).verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement=Arrangement.spacedBy(10.dp)){
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically){
                 IconButton(onClick=onBack, modifier=Modifier.size(44.dp)){ Icon(Icons.Filled.ArrowBack,"back") }
                 Text("POKER", style=MaterialTheme.typography.titleLarge)
@@ -164,7 +167,7 @@ fun PokerScreen(onBack:()->Unit){
                         Box(Modifier.padding(horizontal=12.dp), contentAlignment=Alignment.Center){ Text("$b", color=if(sel) Color.White else if(enabled) ArcadeTokens.Text else ArcadeTokens.TextFaint) }
                     }
                 }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(12.dp))
                 if(chips<=0) Button(onClick={ newHand() }, modifier=Modifier.height(44.dp)){ Text("New Game") }
             }
             // payout / rank table
@@ -212,8 +215,9 @@ fun PokerScreen(onBack:()->Unit){
                     }
                 }
             }
-            Spacer(Modifier.weight(1f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            } // end scroll
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 when(phase){
                     "bet" -> Button(onClick={ deal() }, enabled=chips>0, modifier=Modifier.weight(1f).height(48.dp)){ Text("Deal ($bet)") }
                     "dealt" -> {
