@@ -25,3 +25,4 @@ suspend fun Context.updateHighScore(key: Preferences.Key<Int>, value: Int) {
     }
 }
 suspend fun Context.setArcadeChips(value: Int) { dataStore.edit { it[Prefs.ARCADE_CHIPS] = value } }
+suspend fun Context.addArcadeChips(delta: Int) { dataStore.edit { it[Prefs.ARCADE_CHIPS] = (it[Prefs.ARCADE_CHIPS] ?: 1000) + delta } }

@@ -23,6 +23,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.rennvol.miniarcade.games.blackjack.BlackjackScreen
+import com.rennvol.miniarcade.games.flappy.FlappyBirdScreen
 import com.rennvol.miniarcade.games.game2048.Game2048Screen
 import com.rennvol.miniarcade.games.minesweeper.MinesweeperScreen
 import com.rennvol.miniarcade.games.poker.PokerScreen
@@ -44,7 +45,8 @@ class MainActivity : ComponentActivity() {
                         on2048 = { nav.navigate("2048") },
                         onMinesweeper = { nav.navigate("minesweeper") },
                         onPoker = { nav.navigate("poker") },
-                        onBlackjack = { nav.navigate("blackjack") }
+                        onBlackjack = { nav.navigate("blackjack") },
+                        onFlappy = { nav.navigate("flappy") }
                     ) }
                     composable("tetris") { TetrisScreen(onBack = { nav.popBackStack() }) }
                     composable("solitaire") { SolitaireScreen(onBack = { nav.popBackStack() }) }
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
                     composable("minesweeper") { MinesweeperScreen(onBack = { nav.popBackStack() }) }
                     composable("poker") { PokerScreen(onBack = { nav.popBackStack() }) }
                     composable("blackjack") { BlackjackScreen(onBack = { nav.popBackStack() }) }
+                    composable("flappy") { FlappyBirdScreen(onBack = { nav.popBackStack() }) }
                 }
             }
         }
@@ -61,22 +64,22 @@ class MainActivity : ComponentActivity() {
 data class GameCard(val title: String, val desc: String, val icon: ImageVector, val tint: androidx.compose.ui.graphics.Color, val route: String)
 
 @Composable
-fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit) {
+fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMinesweeper: ()->Unit, onPoker: ()->Unit, onBlackjack: ()->Unit, onFlappy: ()->Unit) {
     val games = listOf(
-        GameCard("Tetris","10×20 stack & clear", Icons.Filled.ViewModule, ArcadeTokens.Primary, "tetris"),
+        GameCard("Tetris","10x20 stack & clear", Icons.Filled.ViewModule, ArcadeTokens.Primary, "tetris"),
         GameCard("Solitaire","Klondike classic", Icons.Filled.Style, ArcadeTokens.Accent, "solitaire"),
         GameCard("2048","Swipe to merge", Icons.Filled.GridOn, ArcadeTokens.Secondary, "2048"),
         GameCard("Minesweeper","Find all mines", Icons.Filled.Flag, ArcadeTokens.Danger, "minesweeper"),
         GameCard("Poker","5-card draw vs CPU", Icons.Filled.Casino, ArcadeTokens.PrimaryDark, "poker"),
         GameCard("Blackjack","21 vs dealer", Icons.Filled.Style, ArcadeTokens.TetrisZ, "blackjack"),
+        GameCard("Flappy Bird","Tap to earn +5 chips", Icons.Filled.Flight, ArcadeTokens.Secondary, "flappy"),
     )
-    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack)
+    val actions = listOf(onTetris, onSolitaire, on2048, onMinesweeper, onPoker, onBlackjack, onFlappy)
     Surface(color = ArcadeTokens.Bg, modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header
             Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(ArcadeTokens.Surface).padding(20.dp)) {
                 Text("MINI ARCADE", style = MaterialTheme.typography.labelSmall, color = ArcadeTokens.TextFaint)
                 Spacer(Modifier.height(4.dp))
@@ -84,17 +87,16 @@ fun HomeScreen(onTetris: ()->Unit, onSolitaire: ()->Unit, on2048: ()->Unit, onMi
                 Spacer(Modifier.height(6.dp))
                 Text("Tap a game to play. Scores saved on device.", style = MaterialTheme.typography.bodyMedium)
             }
-            // Bento grid 3 rows 2x2 (6 cards)
-            for (row in 0..2) {
+            // chunk 2 per row to handle odd count
+            for(chunk in games.chunked(2)){
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for (col in 0..1) {
-                        val idx = row*2+col
-                        val g = games[idx]
-                        GameBentoCard(g, modifier = Modifier.weight(1f), onClick = actions[idx])
+                    for((idx, g) in chunk.withIndex()){
+                        val globalIdx = games.indexOf(g)
+                        GameBentoCard(g, modifier = Modifier.weight(1f), onClick = actions[globalIdx])
                     }
+                    if(chunk.size==1) Spacer(Modifier.weight(1f))
                 }
             }
-            // Offline badge
             Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ArcadeTokens.BgMuted).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.WifiOff, contentDescription = null, tint = ArcadeTokens.TextMuted)
                 Text("No internet permission — 100% offline", style = MaterialTheme.typography.labelLarge, color = ArcadeTokens.TextMuted)
