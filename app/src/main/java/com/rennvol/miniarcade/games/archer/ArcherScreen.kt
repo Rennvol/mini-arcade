@@ -78,8 +78,7 @@ fun ArcherScreen(onBack:()->Unit){
         val bowX=72f; val bowY=ch-88f
         val rad=angle*PI.toFloat()/180f
         val p = power.coerceIn(8f,100f)
-        // map power 0..100 to velocity 6..19
-        val vel = 6f + p/100f*13f
+        // map power 0..100 to velocity 9..27 (was 6..19 too weak to reach middle)
         val vx = cos(rad)*vel + wind*0.28f
         val vy = -sin(rad)*vel
         arrows=arrows+Arrow(bowX+28f, bowY-6f, vx, vy)
@@ -95,7 +94,7 @@ fun ArcherScreen(onBack:()->Unit){
     LaunchedEffect(isCharging){
         while(isCharging && !over && arrowsLeft>0){
             delay(16)
-            if(power<100f) power=(power+1.6f).coerceAtMost(100f)
+            if(power<100f) power=(power+2.4f).coerceAtMost(100f) // faster charge 0-100 ~670ms
             // wind drifts slowly
             if(Random.nextFloat()<0.01f) wind=(wind+Random.nextFloat()*0.6f-0.3f).coerceIn(-4.5f,4.5f)
         }
@@ -127,12 +126,12 @@ fun ArcherScreen(onBack:()->Unit){
             var hitPtsTemp=0
             val newMarks=mutableListOf<HitMark>()
             val tx=cw-110f
-            val ty=ch*0.44f
+            val ty=ch*0.50f // middle (was 0.44 too high)
             for(a in arrows){
                 if(a.stuck){ nextArrows.add(a); continue }
                 a.x+=a.vx
                 a.y+=a.vy
-                a.vy+=0.45f // gravity
+                a.vy+=0.38f // lighter gravity for middle target
                 a.vx+=wind*0.006f
                 // ground / out of bounds
                 if(a.y > ch-22f){
@@ -230,24 +229,22 @@ fun ArcherScreen(onBack:()->Unit){
                     awaitPointerEventScope{
                         while(true){
                             val down=awaitPointerEvent()
-                            val pos=down.changes.firstOrNull()?.position ?: continue
-                            if(!down.changes.any{ it.pressed }) continue
-                            // start charging
+                            val c0=down.changes.firstOrNull() ?: continue
+                            if(!c0.pressed) continue
+                            c0.consume()
                             isCharging=true
-                            var startY=pos.y
+                            var startY=c0.position.y
                             var curAngle=angle
-                            // track until release
+                            var moved=false
                             while(true){
                                 val ev=awaitPointerEvent()
                                 val c=ev.changes.firstOrNull() ?: break
                                 if(!c.pressed){
-                                    // release
                                     releaseArrow()
                                     break
                                 }
                                 val dy=c.position.y - startY
-                                // drag up = increase angle, drag down = decrease
-                                // dy negative (up) -> angle up
+                                if(kotlin.math.abs(dy)>1f) moved=true
                                 val deltaAngle = (-dy * 0.22f)
                                 angle=(curAngle + deltaAngle).coerceIn(-20f,60f)
                                 c.consume()
@@ -270,7 +267,7 @@ fun ArcherScreen(onBack:()->Unit){
                         drawCircle(Color.White.copy(alpha=0.55f), radius=12f, center=Offset(cx-14,cy+6))
                     }
                     // target stand + board
-                    val tx=size.width-110f; val ty=size.height*0.44f
+                    val tx=size.width-110f; val ty=size.height*0.50f
                     // stand shadow
                     drawRoundRect(Color.Black.copy(alpha=0.12f), topLeft=Offset(tx-76+4, ty-76+5), size=Size(152f,152f), cornerRadius=androidx.compose.ui.geometry.CornerRadius(18f,18f))
                     drawRoundRect(Color(0xFF8D6E63), topLeft=Offset(tx-4, ty+68), size=Size(8f, size.height-ty-68-22f), cornerRadius=androidx.compose.ui.geometry.CornerRadius(4f,4f))
@@ -339,12 +336,12 @@ fun ArcherScreen(onBack:()->Unit){
                         drawLine(Color(0xFFE53935), Offset(ax,ay), Offset(ax - cos(rad)*10f - sin(rad)*5f, ay + sin(rad)*10f - cos(rad)*5f), strokeWidth=2f)
                         // trajectory preview dotted line
                         if(power>6f){
-                            val vel=6f + power/100f*13f
+                            val vel=9f + power/100f*18f
                             val vx0=cos(rad)*vel + wind*0.28f
                             val vy0=-sin(rad)*vel
                             var px=ax; var py2=ay; var tvx=vx0; var tvy=vy0
                             for(i in 0..26){
-                                px+=tvx; py2+=tvy; tvy+=0.45f; tvx+=wind*0.006f
+                                px+=tvx; py2+=tvy; tvy+=0.38f; tvx+=wind*0.006f
                                 if(i%2==0) drawCircle(Color(0xFF1A1A2E).copy(alpha=0.45f), radius=2.6f, center=Offset(px,py2))
                                 else drawCircle(Color.White.copy(alpha=0.85f), radius=1.8f, center=Offset(px,py2))
                                 if(py2>size.height-22f || px>size.width+20) break
@@ -403,7 +400,7 @@ fun ArcherScreen(onBack:()->Unit){
                     }
                 } else {
                     Box(Modifier.fillMaxSize().padding(8.dp), contentAlignment=Alignment.BottomCenter){
-                        Text("Hold to charge power • Drag up/down for angle • Release to shoot", color=Color(0xFF546E7A).copy(alpha=0.85f), fontSize=10.sp, fontWeight=FontWeight.Bold)
+                        Text("Hold to charge • Drag up/down angle • Release auto-shoot (hold anywhere)", color=Color(0xFF546E7A).copy(alpha=0.85f), fontSize=10.sp, fontWeight=FontWeight.Bold)
                     }
                 }
             }

@@ -85,9 +85,9 @@ fun PaintballScreen(onBack:()->Unit){
         val sx=cw/2; val sy=ch-72f
         val dx=tx-sx; val dy=ty-sy
         val len=sqrt(dx*dx+dy*dy).coerceAtLeast(1f)
-        val speed=23f
-        // spread +/- 1.5 deg random
-        val spreadRad = (Random.nextFloat()*3f -1.5f) * (PI.toFloat()/180f)
+        val speed=34f // ponytail: 34f reach top targets, was 23f too slow
+        // spread +/- 0.8 deg
+        val spreadRad = (Random.nextFloat()*1.6f -0.8f) * (PI.toFloat()/180f)
         val c=cos(spreadRad); val s=sin(spreadRad)
         val rdx=dx*c - dy*s
         val rdy=dx*s + dy*c
@@ -120,12 +120,12 @@ fun PaintballScreen(onBack:()->Unit){
             val newPopups=mutableListOf<Popup>()
             for(b in balls){
                 if(!b.alive) continue
-                b.x+=b.vx; b.y+=b.vy; b.vy+=0.45f
+                b.x+=b.vx; b.y+=b.vy; b.vy+=0.34f // lower gravity for reach
                 if(b.y < -50 || b.y>ch+50 || b.x < -50 || b.x>cw+50) continue
                 // obstacle hit (cover positions derived from current canvas size)
                 val obsForHit = listOf(
-                    Obstacle(cw*0.18f, ch*0.42f, cw*0.28f, 22f),
-                    Obstacle(cw*0.58f, ch*0.58f, cw*0.28f, 22f)
+                    Obstacle(cw*0.18f, ch*0.50f, cw*0.22f, 16f),
+                    Obstacle(cw*0.60f, ch*0.62f, cw*0.22f, 16f)
                 )
                 var blocked=false
                 for(o in obsForHit){
@@ -239,8 +239,8 @@ fun PaintballScreen(onBack:()->Unit){
                 Canvas(modifier=Modifier.fillMaxSize().pointerInput(Unit){ detectTapGestures{ off-> shoot(off.x, off.y) } }){
                     cw=size.width; ch=size.height
                     val obstacles = listOf(
-                        Obstacle(size.width*0.18f, size.height*0.42f, size.width*0.28f, 22f),
-                        Obstacle(size.width*0.58f, size.height*0.58f, size.width*0.28f, 22f)
+                        Obstacle(size.width*0.18f, size.height*0.50f, size.width*0.22f, 16f),
+                        Obstacle(size.width*0.60f, size.height*0.62f, size.width*0.22f, 16f)
                     )
                     // field gradient
                     drawRect(Brush.verticalGradient(listOf(Color(0xFFEAF0FF), Color(0xFFD6E4FF), Color(0xFFBFD2F5))), size=size)

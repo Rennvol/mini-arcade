@@ -256,10 +256,10 @@ fun ShooterScreen(onBack:()->Unit){
             if(bonusChips>0) scope.launch{ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=(it[Prefs.ARCADE_CHIPS]?:1000)+bonusChips } }catch(_:Exception){} }
             if(ns!=score){
                 score=ns
-                // wave progression for non-boss waves: every 12 kills shop
-                if(!bossKilled && !isBossWave(wave) && score>0 && score%12==0){ wave++; showShop=true }
-                else if(bossKilled){ showShop=true }
-                else if(!isBossWave(wave) && bossAlive){ /* no */ }
+                if(!bossKilled && !isBossWave(wave) && score>0 && score%12==0){
+                    wave++
+                    if(wave%3==0) showShop=true // shop only every 3 waves + boss wave (ponytail: 3-wave interval, lower frequency)
+                } else if(bossKilled){ showShop=true }
             }
             enemies=aliveEnemies
             bullets=filteredBullets
@@ -340,9 +340,10 @@ fun ShooterScreen(onBack:()->Unit){
                         drawCircle(Color(0xFFFF7675), radius=3.5f, center=Offset(bb.x+sxOffset, bb.y+syOffset))
                     }
                 }
-                if(bombs>0 && !over && !showShop){
-                    Box(Modifier.align(Alignment.TopEnd).padding(10.dp)){
-                        Button(onClick={ doBomb() }, modifier=Modifier.height(36.dp), contentPadding=PaddingValues(horizontal=12.dp, vertical=0.dp), colors=ButtonDefaults.buttonColors(containerColor=ArcadeTokens.Danger)){
+                if(!over && !showShop){
+                    Row(Modifier.align(Alignment.TopEnd).padding(10.dp), horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                        Button(onClick={ showShop=true }, modifier=Modifier.height(36.dp), contentPadding=PaddingValues(horizontal=10.dp, vertical=0.dp), colors=ButtonDefaults.buttonColors(containerColor=ArcadeTokens.PrimaryDark)){ Text("SHOP", fontSize=12.sp, fontWeight=FontWeight.Black) }
+                        if(bombs>0) Button(onClick={ doBomb() }, modifier=Modifier.height(36.dp), contentPadding=PaddingValues(horizontal=12.dp, vertical=0.dp), colors=ButtonDefaults.buttonColors(containerColor=ArcadeTokens.Danger)){
                             Text("BOMB x$bombs", fontSize=12.sp, fontWeight=FontWeight.Black)
                         }
                     }
@@ -399,7 +400,7 @@ fun ShooterScreen(onBack:()->Unit){
                 }
                 if(!over && !showShop){
                     Box(Modifier.fillMaxSize().padding(8.dp), contentAlignment=Alignment.BottomCenter){
-                        Text("Drag to move • Auto fire • Every 12 kills = shop • Boss W5/10/15…", color=Color.White.copy(alpha=0.55f), fontSize=10.sp)
+                        Text("Drag to move • Auto fire • Shop every 3 waves + Boss W5/10/15 • Tap SHOP anytime", color=Color.White.copy(alpha=0.55f), fontSize=10.sp)
                     }
                 }
             }
