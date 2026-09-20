@@ -99,22 +99,24 @@ fun TexasHoldemScreen(onBack:()->Unit){
     LaunchedEffect(Unit){ try{ ctx.dataStore.data.collect{ chips=it[Prefs.ARCADE_CHIPS]?:1000 } }catch(_:Exception){} }
     suspend fun save(c:Int){ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=c } }catch(_:Exception){} }
 
-    fun botAction(idx:Int, cur:Int):String{
+    fun botAction(idx:Int, cur:Int):String = try{
         val p=players.getOrNull(idx)?: return "fold"
         if(p.folded || p.allIn) return "check"
-        val sev = p.hole + board.take(revealed)
-        val ev = if(sev.size>=5) bestOf7((sev + List(7-sev.size){ TCard(TSuit.Clubs,2)}).take(7)) else eval5(sev.take(5)) // rough
-        // real strength when <5 board: use hole only
+        // ponytail: naive hole-strength preflop, real eval only >=5 cards; fill never crashes now
+        val sev = p.hole + board.take(revealed.coerceIn(0, board.size))
         val strength = if(sev.size<5){
             val r = p.hole.map{it.rank}.maxOrNull()?:2
             when{ r>=13->2; r>=11->1; else->0}
-        } else ev.first
+        } else {
+            val ev = try{ bestOf7((sev.take(7) + List((7-sev.size).coerceAtLeast(0)){ TCard(TSuit.Clubs,2)}).take(7)) }catch(_:Exception){ 0 to listOf(0) }
+            ev.first
+        }
         val toCall = cur - p.bet
-        if(strength>=6) return "raise"
-        if(strength>=3) return if(toCall==0) "check" else "call"
-        if(strength>=1) return if(toCall==0) "check" else if(toCall<=10) "call" else "fold"
-        return if(toCall==0) "check" else if(toCall<=5 && kotlin.random.Random.nextBoolean()) "call" else "fold"
-    }
+        if(strength>=6) "raise"
+        else if(strength>=3) if(toCall==0) "check" else "call"
+        else if(strength>=1) if(toCall==0) "check" else if(toCall<=10) "call" else "fold"
+        else if(toCall==0) "check" else if(toCall<=5 && kotlin.random.Random.nextBoolean()) "call" else "fold"
+    } catch(_:Exception){ "check" }
 
     suspend fun runBotsAfterPlayer(){
         // each bot acts once after player; if bot raises, player must act again — handled by enabling buttons again
@@ -174,7 +176,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
                     val sc=bestOf7(sev)
                     idx to sc
                 }
-                val best=scores.maxByOrNull{ it.second.first*100 + (it.second.second.firstOrNull()?:0) }!!
+                val best=scores.maxByOrNull{ it.second.first*100 + (it.second.second.firstOrNull()?:0) } ?: run{ msg="No winner — draw"; pot=0; phase="showdown"; return }
                 val winners=scores.filter{ compareHands(it.second, best.second)==0 }.map{it.first}
                 val share=pot / winners.size
                 if(0 in winners){
@@ -200,6 +202,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
             // animate deal one by one
             players=listOf(TPlayer(p0), TPlayer(p1), TPlayer(p2), TPlayer(p3))
             board=bd; revealed=0; pot=0; curBet=10; myBet=0; phase="preflop"
+            if(players.any{ it.hole.size!=2 } || board.size!=5) throw IllegalStateException("deck deal failed")
             // blinds
             pot=15 // 5+10
             players=players.mapIndexed{ idx,p->
@@ -329,7 +332,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
                 // you
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(ArcadeTokens.Surface).padding(10.dp), verticalArrangement=Arrangement.spacedBy(6.dp)){
                     val you=players.getOrNull(0)
-                    val sev = if(you!=null && board.isNotEmpty() && revealed>=3) you.hole + board.take(revealed) else you?.hole ?: listOf()
+                    val sev = if(you!=null && board.isNotEmpty() && revealed>=3) you.hole + board.take(revealed.coerceIn(0, board.size)) else you?.hole ?: listOf()
                     val best = if(sev.size>=5) try{ bestOf7((sev + List(7-sev.size){ TCard(TSuit.Clubs,2)}).take(7)) }catch(_:Exception){ null } else null
                     Text(if(you==null) "You: —" else "You: ${you.hole.joinToString(" "){it.label()}} ${if(you.folded)"(FOLD)" else ""} ${if(you.allIn)"(ALL-IN)" else ""}  • Bet ${you.bet}", fontWeight=FontWeight.Bold, fontSize=12.sp)
                     if(best!=null && revealed>=3 && you!=null && !you.folded) Text("Best: ${rankName(best.first)}", fontSize=11.sp, color=ArcadeTokens.TextMuted)
@@ -361,7 +364,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
                                     }
                                 }
                                 if(show){
-                                    val sev=p.hole+board.take(5)
+                                    val sev=p.hole+board.take(minOf(5, board.size))
                                     val sc=try{ bestOf7(sev) }catch(_:Exception){ null }
                                     if(sc!=null) Text(rankName(sc.first), fontSize=10.sp, color=ArcadeTokens.TextMuted)
                                 }
