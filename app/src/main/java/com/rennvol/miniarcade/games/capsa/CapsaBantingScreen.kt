@@ -55,6 +55,14 @@ private fun classify(cards:List<CCard>):Classed?{
         1->{ val c=s[0]; return Classed(1, listOf(c.rank, c.suit.order), s) }
         2->{ if(s[0].rank!=s[1].rank) return null; val hi=maxOf(s[0],s[1], compareBy<CCard>{it.suit.order}); return Classed(2, listOf(s[0].rank, hi.suit.order), s) }
         3->{ if(s[0].rank!=s[1].rank||s[1].rank!=s[2].rank) return null; val hi=s.maxBy{it.suit.order}; return Classed(3, listOf(s[0].rank, hi.suit.order), s) }
+        4->{
+            val ranks=s.map{it.rank}
+            val groups=ranks.groupBy{it}.mapValues{it.value.size}.entries.sortedWith(compareByDescending<Map.Entry<Int,Int>>{it.value}.thenByDescending{it.key})
+            val cnt=groups.map{it.value}; val vals=groups.map{it.key}
+            if(cnt==listOf(4)){ val q=vals[0]; val qs=s.filter{it.rank==q}.maxOf{it.suit.order}; return Classed(9, listOf(q, qs), s) }
+            if(cnt==listOf(2,2)){ val hi=maxOf(vals[0],vals[1]); val lo=minOf(vals[0],vals[1]); val hs=s.filter{it.rank==hi}.maxOf{it.suit.order}; return Classed(10, listOf(hi, lo, hs), s) }
+            return null
+        }
         5->{
             val flush=isFlush(s)
             val straight=isStraight(s)
@@ -144,6 +152,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
     var selected by remember{ mutableStateOf(setOf<Int>()) }
     var showHelp by remember{ mutableStateOf(false) }
     var botThinking by remember{ mutableStateOf(false) }
+    var difficulty by remember{ mutableIntStateOf(1) } // 0 easy 1 medium 2 hard
 
     LaunchedEffect(Unit){ try{ ctx.dataStore.data.collect{ chips=it[Prefs.ARCADE_CHIPS]?:1000 } }catch(_:Exception){} }
     suspend fun save(c:Int){ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=c } }catch(_:Exception){} }
@@ -196,13 +205,38 @@ fun CapsaBantingScreen(onBack:()->Unit){
                     // prefer low type, don't waste straight flush early unless must
                     val sortedOpts=opts.sortedWith(compareBy<Classed>({it.type},{it.tie.firstOrNull()?:0},{it.tie.getOrNull(1)?:0}))
                     // if multiple, 12% bluff with second smallest if not bomb
-                    val pick = if(sortedOpts.size>=2 && sortedOpts[0].type<7 && kotlin.random.Random.nextInt(100)<12) sortedOpts[1] else sortedOpts[0]
+                    val bluffPct = when(difficulty){0->45;1->18; else->8}
+                    val multiBias = difficulty==2
+                    // hard bot: prefer multi-card (pair/triple/four) when it wins big and leaves fewer cards
+                    val pick = if(sortedOpts.size>=2 && sortedOpts[0].type<7 && kotlin.random.Random.nextInt(100)<bluffPct) sortedOpts[1] else if(multiBias && sortedOpts.any{ it.type==3 || it.type==7 }){
+                        sortedOpts.firstOrNull{ it.type==7 } ?: sortedOpts.firstOrNull{ it.type==3 } ?: sortedOpts[0]
+                    } else sortedOpts[0]
                     val play=pick
                     val nh=bh.toMutableList(); play.cards.forEach{ nh.remove(it) }
                     hands=hands.toMutableList().also{ it[turn]=sortHand(nh) }.toList()
                     table=play; lastPlayer=turn; passCount=0
-                    msg="Bot $turn main ${play.cards.joinToString(" "){it.label()}} (${when(play.type){1->"Single";2->"Pair";3->"Triple";4->"Straight";5->"Flush";6->"Full House";7->"Four";8->"Straight Flush";else->""}})"
+                    msg="Bot $turn main ${play.cards.joinToString(" "){it.label()}} (${when(play.type){1->"Single";2->"Pair";3->"Triple";9->"Four";10->"DoublePair";4->"Straight";5->"Flush";6->"Full House";7->"Four+1";8->"Straight Flush";else->""}})"
                     if(checkWin()){ botThinking=false; break }
+                    // MULTI-PLAY TRIGGER: medium/hard bot can chain 2-4 kartu in one turn
+                    val canChain = difficulty>=1 && play.cards.size<4
+                    if(canChain){
+                        var chain=play.cards.size
+                        var chained=false
+                        while(chain<4){
+                            val next= hands[turn]
+                            if(next.isEmpty()) break
+                            val opts2=findAllPlays(next, table)
+                            if(opts2.isEmpty()) break
+                            val p2=opts2.sortedWith(compareBy<Classed>({it.type},{it.tie.firstOrNull()?:0}))[0]
+                            if(p2.cards.size + chain > 4) break
+                            val nh2=next.toMutableList(); p2.cards.forEach{ nh2.remove(it) }
+                            hands=hands.toMutableList().also{ it[turn]=sortHand(nh2) }.toList()
+                            table=p2; chain+=p2.cards.size; chained=true
+                            msg+=" -> chain " + p2.cards.joinToString(" "){it.label()}
+                            if(checkWin()){ botThinking=false; break }
+                        }
+                        if(chained) msg+=" (chain " + chain + " kartu)"
+                    }
                     turn=(turn+1)%4
                 }
                 if(turn==0) msg+=" — giliran Kamu ${if(table==null)"(bebas)" else "(kalahkan ${table!!.cards.joinToString(" "){it.label()}})"}"
@@ -225,7 +259,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
         var starter=0
         for(i in h.indices) if(h[i].any{it.rank==3 && it.suit==CSuit.Diamond}){ starter=i; break }
         turn=starter
-        msg= if(starter==0) "Kamu pegang 3♦ — mulai duluan! Pilih 1/2/3/5 kartu lalu Play" else "Bot $starter pegang 3♦ — Bot mulai"
+        msg= if(starter==0) "Kamu pegang 3♦ — mulai duluan! Pilih 1/2/3/4 kartu lalu Play" else "Bot $starter pegang 3♦ — Bot mulai"
         if(starter!=0){
             scope.launch{
                 delay(700)
@@ -273,6 +307,35 @@ fun CapsaBantingScreen(onBack:()->Unit){
         table=cl; lastPlayer=0; passCount=0; selected=emptySet()
         msg="Kamu main ${cl.cards.joinToString(" "){it.label()}}"
         if(checkWin()) return
+        turn=1
+        scope.launch{ delay(420); launchBotTurn() }
+    }
+    fun playerChain(){
+        if(phase!="play"||turn!=0||botThinking) return
+        if(selected.isEmpty() || selected.size>=4) return
+        val hand=hands.getOrNull(0)?:return
+        val picked=selected.map{ hand[it] }
+        val cl=classify(picked) ?: run{ msg="Kombinasi chain tidak valid"; return }
+        if(table!=null && !beats(cl, table!!)){ msg="Chain harus kalahkan meja"; return }
+        val nh=hand.toMutableList(); cl.cards.forEach{ nh.remove(it) }
+        hands=hands.toMutableList().also{ it[0]=sortHand(nh) }.toList()
+        table=cl; lastPlayer=0; passCount=0
+        var chain=cl.cards.size
+        msg="Kamu chain ${cl.cards.joinToString(" "){it.label()}}"
+        while(chain<4){
+            val next=hands[0]
+            if(next.isEmpty()) break
+            val opts=findAllPlays(next, table)
+            if(opts.isEmpty()) break
+            val p2=opts.sortedWith(compareBy<Classed>({it.type},{it.tie.firstOrNull()?:0}))[0]
+            if(p2.cards.size + chain > 4) break
+            val nh2=next.toMutableList(); p2.cards.forEach{ nh2.remove(it) }
+            hands=hands.toMutableList().also{ it[0]=sortHand(nh2) }.toList()
+            table=p2; chain+=p2.cards.size
+            msg+=" -> chain ${p2.cards.joinToString(" "){it.label()}}"
+            if(checkWin()) return
+        }
+        msg+=" (chain $chain kartu)"
         turn=1
         scope.launch{ delay(420); launchBotTurn() }
     }
@@ -335,7 +398,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
                                 }
                             }
                         }
-                        if(table!=null) Text(when(table!!.type){1->"Single";2->"Pair";3->"Triple";4->"Straight";5->"Flush";6->"Full House";7->"Four + kicker";8->"Straight Flush";else->""}, color=Color.White.copy(alpha=0.7f), fontSize=10.sp)
+                        if(table!=null) Text(when(table!!.type){1->"Single";2->"Pair";3->"Triple";9->"Four";10->"DoublePair";4->"Straight";5->"Flush";6->"Full House";7->"Four + kicker";8->"Straight Flush";else->""}, color=Color.White.copy(alpha=0.7f), fontSize=10.sp)
                     }
                 }
                 // your hand
@@ -370,9 +433,9 @@ fun CapsaBantingScreen(onBack:()->Unit){
                         Text(
                             when{
                                 selected.isEmpty()-> "Pilih kartu lalu Play — harus kalahkan meja"
-                                cl==null-> "Kombinasi tidak valid"
+                                cl==null-> "Kombinasi tidak valid (Single/Pair/Triple/Four/DoublePair/5-kartu)"
                                 table!=null && !beats(cl, table!!)-> "Tidak mengalahkan meja"
-                                else-> "Siap: ${cl.cards.joinToString(" "){it.label()}} — ${when(cl.type){1->"Single";2->"Pair";3->"Triple";4->"Straight";5->"Flush";6->"Full House";7->"Four";8->"Straight Flush";else->""}} ✓"
+                                else-> "Siap: ${cl.cards.joinToString(" "){it.label()}} — ${when(cl.type){1->"Single";2->"Pair";3->"Triple";9->"Four";10->"DoublePair";4->"Straight";5->"Flush";6->"Full House";7->"Four+1";8->"Straight Flush";else->""}} ✓"
                             }, fontSize=11.sp, color=if(cl!=null && (table==null || beats(cl, table!!))) ArcadeTokens.PrimaryDark else ArcadeTokens.TextMuted
                         )
                     }
@@ -381,6 +444,12 @@ fun CapsaBantingScreen(onBack:()->Unit){
             Spacer(Modifier.height(8.dp))
             when(phase){
                 "idle","win"->{
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                        val lvl=when(difficulty){0->"EZY";1->"MDM";else->"HRD"}
+                        FilterChip(selected=difficulty==0, onClick={difficulty=0}, label={Text("Easy")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)})
+                        FilterChip(selected=difficulty==1, onClick={difficulty=1}, label={Text("Medium")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)})
+                        FilterChip(selected=difficulty==2, onClick={difficulty=2}, label={Text("Hard")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)})
+                    }
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         Button(onClick={ deal() }, modifier=Modifier.weight(1f).height(48.dp)){ Text(if(phase=="win") "New Game" else "Deal") }
                         if(phase=="win") OutlinedButton(onClick={ hands=listOf(); table=null; phase="idle"; msg="Tap Deal — Capsa Banting vs 3 bots"; turn=0; selected=emptySet() }, modifier=Modifier.height(48.dp)){ Text("Clear") }
@@ -390,6 +459,12 @@ fun CapsaBantingScreen(onBack:()->Unit){
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         OutlinedButton(onClick={ playerPass() }, enabled=turn==0 && !botThinking && table!=null, modifier=Modifier.weight(1f).height(48.dp)){ Text("Pass") }
                         Button(onClick={ playerPlay() }, enabled=turn==0 && !botThinking && selected.isNotEmpty(), modifier=Modifier.weight(1f).height(48.dp)){ Text("Play ${if(selected.isNotEmpty())"(${selected.size})" else ""}") }
+                        if(selected.isNotEmpty() && selected.size<4){
+                            val picked=selected.map{ hand[it] }
+                            val cl=picked.let{ try{classify(it)}catch(_:Exception){null} }
+                            val canChain = cl!=null && (table==null || beats(cl, table!!))
+                            if(canChain) OutlinedButton(onClick={ playerChain() }, modifier=Modifier.height(48.dp)){ Text("Chain") }
+                        }
                     }
                     if(botThinking) LinearProgressIndicator(modifier=Modifier.fillMaxWidth().padding(top=6.dp))
                 }
@@ -399,8 +474,8 @@ fun CapsaBantingScreen(onBack:()->Unit){
     if(showHelp){
         AlertDialog(onDismissRequest={showHelp=false}, title={Text("Capsa Banting")}, text={
             Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
-                Text("Buang kartu searah jarum jam. 3♦ mulai.", style=MaterialTheme.typography.bodyMedium)
-                Text("Kombinasi: Single, Pair, Triple, Straight(5), Flush(5), Full House(3+2), Four(4+1), Straight Flush(5).", fontSize=12.sp)
+                Text("Buang kartu searah jarum jam. 3♦ mulai. Difficulty: Easy (blunder 45%) / Medium (18%) / Hard (8% + pilih Four/DoublePair).", style=MaterialTheme.typography.bodyMedium)
+                Text("Kombinasi: Single(1), Pair(2), Triple(3), Four(4), DoublePair(2+2), Straight(5), Flush(5), Full House(3+2), Four(4+1), Straight Flush(5).", fontSize=12.sp)
                 Text("Harus lawan jumlah kartu sama & lebih tinggi. 5-kartu: StraightFlush > Four > FullHouse > Flush > Straight.", fontSize=12.sp, color=ArcadeTokens.TextMuted)
                 Text("Gak bisa kalahkan → Pass. 3 Pass → meja clear, bebas buka. Habiskan 13 kartu duluan menang +chips.", fontSize=12.sp, color=ArcadeTokens.TextMuted)
                 Text("Rank: 3 < 4 < 5 < 6 < 7 < 8 < 9 < 10 < J < Q < K < A < 2. Suit: ♦ < ♣ < ♥ < ♠.", fontSize=11.sp, color=ArcadeTokens.TextMuted)
