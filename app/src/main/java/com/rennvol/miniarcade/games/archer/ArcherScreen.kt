@@ -78,7 +78,7 @@ fun ArcherScreen(onBack:()->Unit){
         val bowX=72f; val bowY=ch-88f
         val rad=angle*PI.toFloat()/180f
         val p = power.coerceIn(8f,100f)
-        // map power 0..100 to velocity 9..27 (was 6..19 too weak to reach middle)
+        val vel = 10f + p/100f*20f // 10..30 reach middle, was 6..19 too weak
         val vx = cos(rad)*vel + wind*0.28f
         val vy = -sin(rad)*vel
         arrows=arrows+Arrow(bowX+28f, bowY-6f, vx, vy)
@@ -125,13 +125,13 @@ fun ArcherScreen(onBack:()->Unit){
             var scoreAdd=0
             var hitPtsTemp=0
             val newMarks=mutableListOf<HitMark>()
-            val tx=cw-110f
-            val ty=ch*0.50f // middle (was 0.44 too high)
+            val tx=cw-130f
+            val ty=ch*0.54f // middle-lower easier reach
             for(a in arrows){
                 if(a.stuck){ nextArrows.add(a); continue }
                 a.x+=a.vx
                 a.y+=a.vy
-                a.vy+=0.38f // lighter gravity for middle target
+                a.vy+=0.34f // lighter gravity easier reach middle
                 a.vx+=wind*0.006f
                 // ground / out of bounds
                 if(a.y > ch-22f){
@@ -267,7 +267,7 @@ fun ArcherScreen(onBack:()->Unit){
                         drawCircle(Color.White.copy(alpha=0.55f), radius=12f, center=Offset(cx-14,cy+6))
                     }
                     // target stand + board
-                    val tx=size.width-110f; val ty=size.height*0.50f
+                    val tx=size.width-130f; val ty=size.height*0.54f
                     // stand shadow
                     drawRoundRect(Color.Black.copy(alpha=0.12f), topLeft=Offset(tx-76+4, ty-76+5), size=Size(152f,152f), cornerRadius=androidx.compose.ui.geometry.CornerRadius(18f,18f))
                     drawRoundRect(Color(0xFF8D6E63), topLeft=Offset(tx-4, ty+68), size=Size(8f, size.height-ty-68-22f), cornerRadius=androidx.compose.ui.geometry.CornerRadius(4f,4f))
@@ -341,7 +341,7 @@ fun ArcherScreen(onBack:()->Unit){
                             val vy0=-sin(rad)*vel
                             var px=ax; var py2=ay; var tvx=vx0; var tvy=vy0
                             for(i in 0..26){
-                                px+=tvx; py2+=tvy; tvy+=0.38f; tvx+=wind*0.006f
+                                px+=tvx; py2+=tvy; tvy+=0.34f; tvx+=wind*0.006f
                                 if(i%2==0) drawCircle(Color(0xFF1A1A2E).copy(alpha=0.45f), radius=2.6f, center=Offset(px,py2))
                                 else drawCircle(Color.White.copy(alpha=0.85f), radius=1.8f, center=Offset(px,py2))
                                 if(py2>size.height-22f || px>size.width+20) break
