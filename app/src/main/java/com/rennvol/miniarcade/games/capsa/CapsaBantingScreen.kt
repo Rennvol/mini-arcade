@@ -223,7 +223,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
                         var chain=play.cards.size
                         var chained=false
                         while(chain<4){
-                            val next= hands[turn]
+                            val next= hands.getOrNull(turn)?:break
                             if(next.isEmpty()) break
                             val opts2=findAllPlays(next, table)
                             if(opts2.isEmpty()) break
@@ -296,6 +296,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
         if(phase!="play"||turn!=0||botThinking) return
         if(selected.isEmpty()) return
         val hand=hands.getOrNull(0)?:return
+        if(selected.any{ it>=hand.size || it<0 }) return
         val picked=selected.map{ hand[it] }
         val cl=classify(picked)
         if(cl==null){ msg="Kombinasi tidak valid — Single / Pair / Triple / 5-kartu (Straight/Flush/FullHouse/Four/StraightFlush) saja"; return }
@@ -314,16 +315,18 @@ fun CapsaBantingScreen(onBack:()->Unit){
         if(phase!="play"||turn!=0||botThinking) return
         if(selected.isEmpty() || selected.size>=4) return
         val hand=hands.getOrNull(0)?:return
+        // guard stale/out-of-range indices (crash source)
+        if(selected.any{ it>=hand.size || it<0 }) return
         val picked=selected.map{ hand[it] }
         val cl=classify(picked) ?: run{ msg="Kombinasi chain tidak valid"; return }
         if(table!=null && !beats(cl, table!!)){ msg="Chain harus kalahkan meja"; return }
         val nh=hand.toMutableList(); cl.cards.forEach{ nh.remove(it) }
         hands=hands.toMutableList().also{ it[0]=sortHand(nh) }.toList()
-        table=cl; lastPlayer=0; passCount=0
+        table=cl; lastPlayer=0; passCount=0; selected=emptySet()
         var chain=cl.cards.size
         msg="Kamu chain ${cl.cards.joinToString(" "){it.label()}}"
         while(chain<4){
-            val next=hands[0]
+            val next=hands.getOrNull(0)?:break
             if(next.isEmpty()) break
             val opts=findAllPlays(next, table)
             if(opts.isEmpty()) break
@@ -459,7 +462,7 @@ fun CapsaBantingScreen(onBack:()->Unit){
                         OutlinedButton(onClick={ playerPass() }, enabled=turn==0 && !botThinking && table!=null, modifier=Modifier.weight(1f).height(48.dp)){ Text("Pass") }
                         Button(onClick={ playerPlay() }, enabled=turn==0 && !botThinking && selected.isNotEmpty(), modifier=Modifier.weight(1f).height(48.dp)){ Text("Play ${if(selected.isNotEmpty())"(${selected.size})" else ""}") }
                         val hand0=hands.getOrNull(0) ?: listOf()
-                        if(selected.isNotEmpty() && selected.size<4 && hand0.size>=selected.maxOf{it}+1){
+                        if(selected.isNotEmpty() && selected.size<4 && hand0.isNotEmpty() && hand0.size>=selected.maxOf{it}+1){
                             val picked=selected.map{ hand0[it] }
                             val cl=picked.let{ try{classify(it)}catch(_:Exception){null} }
                             val canChain = cl!=null && (table==null || beats(cl, table!!))
