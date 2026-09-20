@@ -445,9 +445,9 @@ fun CapsaBantingScreen(onBack:()->Unit){
             when(phase){
                 "idle","win"->{
                     Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                        FilterChip(selected=difficulty==0, onClick={difficulty=0}, label={Text("Easy")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)))
-                        FilterChip(selected=difficulty==1, onClick={difficulty=1}, label={Text("Medium")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)))
-                        FilterChip(selected=difficulty==2, onClick={difficulty=2}, label={Text("Hard")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White)))
+                        FilterChip(selected=difficulty==0, onClick={difficulty=0}, label={Text("Easy")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White))
+                        FilterChip(selected=difficulty==1, onClick={difficulty=1}, label={Text("Medium")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White))
+                        FilterChip(selected=difficulty==2, onClick={difficulty=2}, label={Text("Hard")}, modifier=Modifier.weight(1f).height(40.dp), colors=FilterChipDefaults.filterChipColors(selectedContainerColor=ArcadeTokens.Primary, selectedLabelColor=Color.White))
                     }
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         Button(onClick={ deal() }, modifier=Modifier.weight(1f).height(48.dp)){ Text(if(phase=="win") "New Game" else "Deal") }
@@ -458,8 +458,9 @@ fun CapsaBantingScreen(onBack:()->Unit){
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         OutlinedButton(onClick={ playerPass() }, enabled=turn==0 && !botThinking && table!=null, modifier=Modifier.weight(1f).height(48.dp)){ Text("Pass") }
                         Button(onClick={ playerPlay() }, enabled=turn==0 && !botThinking && selected.isNotEmpty(), modifier=Modifier.weight(1f).height(48.dp)){ Text("Play ${if(selected.isNotEmpty())"(${selected.size})" else ""}") }
-                        if(selected.isNotEmpty() && selected.size<4){
-                            val picked=selected.map{ hand[it] }
+                        val hand0=hands.getOrNull(0) ?: listOf()
+                        if(selected.isNotEmpty() && selected.size<4 && hand0.size>=selected.maxOf{it}+1){
+                            val picked=selected.map{ hand0[it] }
                             val cl=picked.let{ try{classify(it)}catch(_:Exception){null} }
                             val canChain = cl!=null && (table==null || beats(cl, table!!))
                             if(canChain) OutlinedButton(onClick={ playerChain() }, modifier=Modifier.height(48.dp)){ Text("Chain") }
