@@ -99,7 +99,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
     LaunchedEffect(Unit){ try{ ctx.dataStore.data.collect{ chips=it[Prefs.ARCADE_CHIPS]?:1000 } }catch(_:Exception){} }
     suspend fun save(c:Int){ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=c } }catch(_:Exception){} }
 
-    fun botAction(idx:Int, cur:Int):String = try{
+    fun botAction(idx:Int, cur:Int):String { return try{
         val p=players.getOrNull(idx)?: return "fold"
         if(p.folded || p.allIn) return "check"
         // ponytail: naive hole-strength preflop, real eval only >=5 cards; fill never crashes now
@@ -117,6 +117,7 @@ fun TexasHoldemScreen(onBack:()->Unit){
         else if(strength>=1) if(toCall==0) "check" else if(toCall<=10) "call" else "fold"
         else if(toCall==0) "check" else if(toCall<=5 && kotlin.random.Random.nextBoolean()) "call" else "fold"
     } catch(_:Exception){ "check" }
+    }
 
     suspend fun runBotsAfterPlayer(){
         // each bot acts once after player; if bot raises, player must act again — handled by enabling buttons again

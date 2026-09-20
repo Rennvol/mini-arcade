@@ -61,7 +61,7 @@ private fun generateBoard(seed: Long): Pair<List<Snake>, List<Ladder>> {
             val top = r.nextInt(b+12, 98)
             if(b !in used && top !in used && b!=top && snakes.none{ it.head==top || it.tail==b } && ladders.none{ it.bottom==b || it.top==top }){
                 // ladder bottom low, top high
-                ladders.add(Ladder(b,top)); used.add(b); used.add(t)op; break
+                ladders.add(Ladder(b,top)); used.add(b); used.add(top); break
             }
             tries++
         }
@@ -97,7 +97,7 @@ fun SnakesLadderScreen(onBack:()->Unit){
     var msg by remember{ mutableStateOf("Pilih musuh 1-3 lalu Roll! Tangga naik, ular turun.") }
     var winner by remember{ mutableStateOf<Int?>(null) }
     var showHelp by remember{ mutableStateOf(false) }
-    var playerCount by remember{ derivedStateOf{ enemyCount+1 } }
+    val playerCount by remember{ derivedStateOf{ enemyCount+1 } }
 
     LaunchedEffect(Unit){ try{ ctx.dataStore.data.collect{ chips=it[Prefs.ARCADE_CHIPS]?:1000 } }catch(_:Exception){} }
     suspend fun save(c:Int){ try{ ctx.dataStore.edit{ it[Prefs.ARCADE_CHIPS]=c } }catch(_:Exception){} }
