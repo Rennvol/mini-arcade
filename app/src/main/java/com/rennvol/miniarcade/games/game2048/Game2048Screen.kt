@@ -1,7 +1,6 @@
 package com.rennvol.miniarcade.games.game2048
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -119,18 +118,7 @@ fun Game2048Screen(onBack: ()->Unit){
                 ScoreBox2048("Score", score, Modifier.weight(1f))
                 ScoreBox2048("Best", best, Modifier.weight(1f))
             }
-            Box(
-                Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(Color(0xFFBBADA0)).padding(8.dp)
-                .pointerInput(Unit){
-                    var sx=0f; var sy=0f
-                    detectDragGestures(onDragStart={ sx=it.x; sy=it.y }, onDragEnd={
-                        val dx=sx - 0f // unused
-                    }, onDrag={_, _->{}} )
-                }
-            ){
-                // swipe via drag end detection: use raw pointerInput with await
-            }
-            // actual swipe board with drag detection
+            // swipe board with drag detection
             var dragX by remember { mutableStateOf(0f) }
             var dragY by remember { mutableStateOf(0f) }
             Box(
