@@ -201,42 +201,20 @@ fun CapsaBantingScreen(onBack:()->Unit){
                         }
                     }
                 } else {
-                    // hard bot: pick smallest winning, but bluff-keep bomb occasionally
-                    // prefer low type, don't waste straight flush early unless must
+                    // smart bot: smallest winning, tapi hemat kartu 2/A — jangan buang 2 sembarangan
                     val sortedOpts=opts.sortedWith(compareBy<Classed>({it.type},{it.tie.firstOrNull()?:0},{it.tie.getOrNull(1)?:0}))
-                    // if multiple, 12% bluff with second smallest if not bomb
+                    fun hasTwo(c:Classed)= c.cards.any{it.rank==15}
+                    // sisihkan opsi pakai 2 kalau ada alternatif tanpa 2
+                    val withoutTwo = sortedOpts.filter{ !hasTwo(it) }
+                    val pool = if(withoutTwo.isNotEmpty()) withoutTwo else sortedOpts
                     val bluffPct = when(difficulty){0->45;1->18; else->8}
-                    val multiBias = difficulty==2
-                    // hard bot: prefer multi-card (pair/triple/four) when it wins big and leaves fewer cards
-                    val pick = if(sortedOpts.size>=2 && sortedOpts[0].type<7 && kotlin.random.Random.nextInt(100)<bluffPct) sortedOpts[1] else if(multiBias && sortedOpts.any{ it.type==3 || it.type==7 }){
-                        sortedOpts.firstOrNull{ it.type==7 } ?: sortedOpts.firstOrNull{ it.type==3 } ?: sortedOpts[0]
-                    } else sortedOpts[0]
+                    val pick = if(pool.size>=2 && pool[0].type<7 && kotlin.random.Random.nextInt(100)<bluffPct) pool[1] else pool[0]
                     val play=pick
                     val nh=bh.toMutableList(); play.cards.forEach{ nh.remove(it) }
                     hands=hands.toMutableList().also{ it[turn]=sortHand(nh) }.toList()
                     table=play; lastPlayer=turn; passCount=0
                     msg="Bot $turn main ${play.cards.joinToString(" "){it.label()}} (${when(play.type){1->"Single";2->"Pair";3->"Triple";9->"Four";10->"DoublePair";4->"Straight";5->"Flush";6->"Full House";7->"Four+1";8->"Straight Flush";else->""}})"
                     if(checkWin()){ botThinking=false; break }
-                    // MULTI-PLAY TRIGGER: medium/hard bot can chain 2-4 kartu in one turn
-                    val canChain = difficulty>=1 && play.cards.size<4
-                    if(canChain){
-                        var chain=play.cards.size
-                        var chained=false
-                        while(chain<4){
-                            val next= hands.getOrNull(turn)?:break
-                            if(next.isEmpty()) break
-                            val opts2=findAllPlays(next, table)
-                            if(opts2.isEmpty()) break
-                            val p2=opts2.sortedWith(compareBy<Classed>({it.type},{it.tie.firstOrNull()?:0}))[0]
-                            if(p2.cards.size + chain > 4) break
-                            val nh2=next.toMutableList(); p2.cards.forEach{ nh2.remove(it) }
-                            hands=hands.toMutableList().also{ it[turn]=sortHand(nh2) }.toList()
-                            table=p2; chain+=p2.cards.size; chained=true
-                            msg+=" -> chain " + p2.cards.joinToString(" "){it.label()}
-                            if(checkWin()){ botThinking=false; break }
-                        }
-                        if(chained) msg+=" (chain " + chain + " kartu)"
-                    }
                     turn=(turn+1)%4
                 }
                 if(turn==0) msg+=" — giliran Kamu ${if(table==null)"(bebas)" else "(kalahkan ${table!!.cards.joinToString(" "){it.label()}})"}"
@@ -311,38 +289,6 @@ fun CapsaBantingScreen(onBack:()->Unit){
         turn=1
         scope.launch{ delay(420); launchBotTurn() }
     }
-    fun playerChain(){
-        if(phase!="play"||turn!=0||botThinking) return
-        if(selected.isEmpty() || selected.size>=4) return
-        val hand=hands.getOrNull(0)?:return
-        // guard stale/out-of-range indices (crash source)
-        if(selected.any{ it>=hand.size || it<0 }) return
-        val picked=selected.map{ hand[it] }
-        val cl=classify(picked) ?: run{ msg="Kombinasi chain tidak valid"; return }
-        if(table!=null && !beats(cl, table!!)){ msg="Chain harus kalahkan meja"; return }
-        val nh=hand.toMutableList(); cl.cards.forEach{ nh.remove(it) }
-        hands=hands.toMutableList().also{ it[0]=sortHand(nh) }.toList()
-        table=cl; lastPlayer=0; passCount=0; selected=emptySet()
-        var chain=cl.cards.size
-        msg="Kamu chain ${cl.cards.joinToString(" "){it.label()}}"
-        while(chain<4){
-            val next=hands.getOrNull(0)?:break
-            if(next.isEmpty()) break
-            val opts=findAllPlays(next, table)
-            if(opts.isEmpty()) break
-            val p2=opts.sortedWith(compareBy<Classed>({it.type},{it.tie.firstOrNull()?:0}))[0]
-            if(p2.cards.size + chain > 4) break
-            val nh2=next.toMutableList(); p2.cards.forEach{ nh2.remove(it) }
-            hands=hands.toMutableList().also{ it[0]=sortHand(nh2) }.toList()
-            table=p2; chain+=p2.cards.size
-            msg+=" -> chain ${p2.cards.joinToString(" "){it.label()}}"
-            if(checkWin()) return
-        }
-        msg+=" (chain $chain kartu)"
-        turn=1
-        scope.launch{ delay(420); launchBotTurn() }
-    }
-
     Surface(color=ArcadeTokens.Bg, modifier=Modifier.fillMaxSize()){
         Column(Modifier.fillMaxSize().padding(12.dp)){
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically){
@@ -461,13 +407,6 @@ fun CapsaBantingScreen(onBack:()->Unit){
                     Row(Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement=Arrangement.spacedBy(8.dp)){
                         OutlinedButton(onClick={ playerPass() }, enabled=turn==0 && !botThinking && table!=null, modifier=Modifier.weight(1f).height(48.dp)){ Text("Pass") }
                         Button(onClick={ playerPlay() }, enabled=turn==0 && !botThinking && selected.isNotEmpty(), modifier=Modifier.weight(1f).height(48.dp)){ Text("Play ${if(selected.isNotEmpty())"(${selected.size})" else ""}") }
-                        val hand0=hands.getOrNull(0) ?: listOf()
-                        if(selected.isNotEmpty() && selected.size<4 && hand0.isNotEmpty() && hand0.size>=selected.maxOf{it}+1){
-                            val picked=selected.map{ hand0[it] }
-                            val cl=picked.let{ try{classify(it)}catch(_:Exception){null} }
-                            val canChain = cl!=null && (table==null || beats(cl, table!!))
-                            if(canChain) OutlinedButton(onClick={ playerChain() }, modifier=Modifier.height(48.dp)){ Text("Chain") }
-                        }
                     }
                     if(botThinking) LinearProgressIndicator(modifier=Modifier.fillMaxWidth().padding(top=6.dp))
                 }
